@@ -1,0 +1,222 @@
+---
+title: "Prompt Engineering Beyond the Basics"
+---
+
+## Why Most Prompt Engineering Advice Falls Short
+
+The internet is full of prompt engineering tips: "be specific," "give examples," "assign a role." These are fine for ChatGPT conversations. They are insufficient for production systems where prompts run millions of times, outputs feed into downstream processes, and a 2% accuracy regression costs real money.
+
+At MiraiTech, we treat prompts as code — versioned, tested, reviewed, and monitored. This article covers the patterns that have made the biggest difference in our production systems.
+
+## Chain-of-Thought That Actually Helps
+
+Chain-of-thought (CoT) prompting is not just adding "think step by step." That phrase helps on benchmarks but often produces verbose, meandering reasoning in production. We use **structured CoT** — explicitly defining the reasoning steps we want.
+
+```text title="structured-cot-prompt.txt"
+Classify the following customer support ticket.
+
+Before answering, work through these steps:
+1. IDENTIFY the product mentioned (if any)
+2. DETERMINE the customer's emotional state (frustrated, neutral, satisfied)
+3. CATEGORIZE the issue type from this list: [billing, technical, feature_request, account, other]
+4. ASSESS urgency based on: account impact, financial impact, and time sensitivity
+5. OUTPUT your classification
+
+Ticket: """{{ticket_text}}"""
+
+Step 1 - Product:
+```
+
+The key insight: **constrain the reasoning format**. When we let models reason freely, they sometimes skip critical analysis steps or get distracted by irrelevant details. By numbering the steps and naming them, we get consistent, auditable reasoning chains.
+
+### When CoT Hurts
+
+CoT is not always beneficial. For simple classification tasks with clear categories, it adds latency without improving accuracy. We benchmark both approaches and only keep CoT when it delivers measurable improvement.
+
+| Task Type | CoT Benefit | Notes |
+|-----------|------------|-------|
+| Multi-step reasoning | High (+15-25% accuracy) | Math, logic, complex analysis |
+| Ambiguous classification | Medium (+5-10%) | When categories overlap |
+| Simple extraction | None to negative | Adds latency, no accuracy gain |
+| Creative generation | Variable | Can reduce creativity by over-constraining |
+| Code generation | High (+10-20%) | Planning before coding improves correctness |
+
+## Structured Outputs for Reliable Pipelines
+
+Free-text LLM outputs are a nightmare for downstream systems. A JSON response that is valid 98% of the time means 2% of your pipeline runs crash. We enforce structure at multiple levels.
+
+```python title="structured_output.py"
+from pydantic import BaseModel, Field
+from openai import OpenAI
+from enum import Enum
+
+class Urgency(str, Enum):
+    critical = "critical"
+    high = "high"
+    medium = "medium"
+    low = "low"
+
+class TicketClassification(BaseModel):
+    """Classification output for a customer support ticket."""
+    category: str = Field(
+        description="Issue category",
+        enum=["billing", "technical", "feature_request", "account", "other"]
+    )
+    urgency: Urgency
+    sentiment: float = Field(
+        ge=-1.0, le=1.0,
+        description="Customer sentiment from -1 (angry) to 1 (happy)"
+    )
+    requires_escalation: bool
+    reasoning: str = Field(
+        description="Brief explanation of the classification decision",
+        max_length=200
+    )
+
+client = OpenAI()
+
+def classify_ticket(ticket_text: str) -> TicketClassification:
+    completion = client.beta.chat.completions.parse(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": CLASSIFICATION_PROMPT},
+            {"role": "user", "content": ticket_text},
+        ],
+        response_format=TicketClassification,
+    )
+    return completion.choices[0].message.parsed
+```
+
+<Callout type="tip" title="Pydantic Is Your Best Friend">
+Define your output schema as a Pydantic model, not as a JSON example in the prompt. Pydantic gives you automatic validation, clear error messages, and type safety. The model's structured output mode uses the schema directly, eliminating parsing failures almost entirely.
+</Callout>
+
+## Few-Shot Calibration
+
+Few-shot examples are powerful but treacherous. Bad examples teach bad patterns. We follow a deliberate calibration process.
+
+### The Calibration Protocol
+
+<Step number={1} title="Collect edge cases first">
+Do not start with easy examples. Gather the hardest, most ambiguous cases from your real data. These are where the model needs the most guidance.
+</Step>
+
+<Step number={2} title="Balance your example distribution">
+If 80% of your tickets are billing issues, do not use 4 billing examples out of 5. Over-represent rare categories so the model learns to recognize them. We typically use equal representation across categories.
+</Step>
+
+<Step number={3} title="Test example ordering">
+Models are sensitive to example order. We shuffle our few-shot examples and measure accuracy across orderings. If accuracy varies by more than 3%, the examples are not robust enough — we add more or choose different ones.
+</Step>
+
+<Step number={4} title="Include negative examples">
+Show the model what a wrong answer looks like and explain why it is wrong. This is especially effective for classification tasks with confusing category boundaries.
+</Step>
+
+### How Many Examples?
+
+More is not always better. We have found diminishing returns after 3-5 examples for most tasks, and performance can actually degrade with too many (the model starts pattern-matching surface features of the examples rather than understanding the task).
+
+## Prompt Versioning and Management
+
+In production, prompts change constantly. Without versioning, you cannot answer basic questions: "What changed?" "When did accuracy drop?" "Can we roll back?"
+
+```python title="prompt_registry.py"
+import hashlib
+from datetime import datetime
+from dataclasses import dataclass
+
+@dataclass
+class PromptVersion:
+    name: str
+    template: str
+    version: str
+    created_at: datetime
+    metadata: dict
+
+    @property
+    def content_hash(self) -> str:
+        return hashlib.sha256(self.template.encode()).hexdigest()[:12]
+
+class PromptRegistry:
+    """Simple prompt versioning backed by a database or config file."""
+
+    def __init__(self, store):
+        self.store = store
+
+    def register(self, name: str, template: str, metadata: dict = None):
+        content_hash = hashlib.sha256(template.encode()).hexdigest()[:12]
+        existing = self.store.get_by_hash(name, content_hash)
+        if existing:
+            return existing  # identical prompt already registered
+
+        version = f"v{self.store.next_version_number(name)}"
+        entry = PromptVersion(
+            name=name,
+            template=template,
+            version=version,
+            created_at=datetime.utcnow(),
+            metadata=metadata or {},
+        )
+        self.store.save(entry)
+        return entry
+
+    def get_active(self, name: str) -> PromptVersion:
+        return self.store.get_active(name)
+
+    def rollback(self, name: str, version: str):
+        self.store.set_active(name, version)
+```
+
+Every prompt change goes through code review. Every deployed prompt has a content hash. Every LLM call logs which prompt version was used. When accuracy drops, we diff the prompt versions and correlate with our evaluation metrics.
+
+## Evaluation: The Part Everyone Skips
+
+You cannot improve what you do not measure. Yet most teams deploy prompts based on vibes — "it seems better on these three examples." We run structured evaluations.
+
+### Evaluation Dimensions
+
+| Dimension | How We Measure | Acceptable Threshold |
+|-----------|---------------|---------------------|
+| Accuracy | Human-labeled golden set (200+ examples) | > 92% exact match |
+| Consistency | Same input 10 times, measure variance | < 5% output variance |
+| Latency | P50 and P95 response times | P95 < 3s |
+| Cost | Tokens per request (input + output) | < 2000 tokens average |
+| Safety | Adversarial test suite (jailbreaks, injections) | 0% bypass rate |
+| Format compliance | Parse rate of structured outputs | > 99.5% |
+
+### A/B Testing Prompts
+
+We run prompt A/B tests the same way we run feature A/B tests. A new prompt version gets 10% of traffic initially. We monitor accuracy, latency, and cost for 48 hours before ramping up. This has caught regressions that looked fine on our evaluation set but failed on real-world distribution.
+
+<Callout type="warning" title="Evaluation Sets Drift">
+Your golden evaluation set becomes stale. Real user inputs change over time — new products launch, terminology shifts, edge cases emerge. We refresh 20% of our evaluation set monthly with fresh production examples. Without this, you optimize for yesterday's traffic.
+</Callout>
+
+## Production Prompt Management Patterns
+
+### Template Composition
+
+Large prompts become unmaintainable as monoliths. We compose them from sections:
+
+- **System identity**: who the model is and its constraints
+- **Task specification**: what it needs to do
+- **Output format**: exact structure required
+- **Few-shot examples**: calibration examples
+- **Context injection**: dynamic data from the application
+
+Each section is versioned independently and composed at runtime. This lets us update examples without touching the task specification, or tighten output formatting without risking the core instructions.
+
+### Prompt Injection Defense
+
+Every user-provided input is a potential injection vector. We use delimiter-based isolation (wrapping user input in triple quotes or XML tags), input validation, and output verification. No single defense is sufficient — we layer them.
+
+### Cost Optimization
+
+Prompt length directly impacts cost. We regularly audit our prompts for redundancy. Common wins: removing verbose instructions that the model already follows by default, replacing long few-shot examples with shorter ones that make the same point, and using system-level caching for prompts that share a common prefix.
+
+## The Meta-Lesson
+
+<KeyTakeaway title="Prompts Are Software">
+The gap between amateur and professional prompt engineering is the same gap between scripting and software engineering. It is not about clever tricks — it is about testing, versioning, monitoring, and iteration. Treat your prompts with the same rigor you treat your code, and your LLM-powered features will be reliable enough to bet your product on.
+</KeyTakeaway>

@@ -1,0 +1,318 @@
+---
+title: "Fine-Tuning LLMs: When, Why, and How"
+---
+
+## The Decision We Keep Getting Wrong
+
+The most expensive mistake we see teams make with LLMs isn't choosing the wrong model — it's fine-tuning when they should be prompt engineering, or prompt engineering when they should be fine-tuning. After shipping fine-tuned models for legal document analysis, customer support routing, and medical coding, we've developed a practical framework for making this decision.
+
+### When Fine-Tuning Actually Makes Sense
+
+Fine-tuning is justified when at least two of these conditions are true:
+
+| Condition | Why It Matters |
+|-----------|---------------|
+| Consistent output format required | Prompt engineering struggles with strict schema adherence across edge cases |
+| Domain-specific vocabulary or reasoning | General models hallucinate domain terms or apply incorrect reasoning patterns |
+| Latency budget under 500ms | Smaller fine-tuned models outperform larger prompted models |
+| Cost per request must decrease | A fine-tuned 8B model is 50-100x cheaper than prompting GPT-4o |
+| Thousands of labeled examples available | Fine-tuning without sufficient data produces worse results than prompting |
+
+If none of these apply, start with prompt engineering. If only one applies, try few-shot prompting with structured output first. We've seen teams burn months fine-tuning a model that a well-crafted system prompt could have handled.
+
+<Callout type="warning" title="Fine-Tuning Doesn't Add Knowledge">
+Fine-tuning adjusts a model's behavior and style — it doesn't reliably inject new factual knowledge. If your use case requires the model to know about your proprietary product catalog or internal policies, RAG (retrieval-augmented generation) is the correct approach, potentially combined with fine-tuning for output formatting.
+</Callout>
+
+## Data Preparation: The Unglamorous Foundation
+
+Data quality determines fine-tuning success more than any hyperparameter choice. We spend 60-70% of total project time on data preparation.
+
+### Building the Training Set
+
+```python title="ml/data/prepare_training_data.py"
+import json
+import hashlib
+from pathlib import Path
+from dataclasses import dataclass, field
+
+from pydantic import BaseModel, validator
+
+
+class TrainingExample(BaseModel):
+    """A single training example in chat format."""
+
+    messages: list[dict[str, str]]
+
+    @validator("messages")
+    def validate_messages(cls, v):
+        roles = [m["role"] for m in v]
+
+        # Must start with system or user
+        if roles[0] not in ("system", "user"):
+            raise ValueError("Conversation must start with system or user message")
+
+        # Must end with assistant
+        if roles[-1] != "assistant":
+            raise ValueError("Conversation must end with assistant message")
+
+        # No empty content
+        for msg in v:
+            if not msg["content"].strip():
+                raise ValueError(f"Empty content in {msg['role']} message")
+
+        return v
+
+
+@dataclass
+class DatasetBuilder:
+    """Builds and validates a fine-tuning dataset with deduplication,
+    quality filtering, and train/eval splitting."""
+
+    examples: list[TrainingExample] = field(default_factory=list)
+    seen_hashes: set[str] = field(default_factory=set)
+    rejected: list[dict] = field(default_factory=list)
+
+    def add_example(self, raw: dict) -> bool:
+        # Deduplicate by content hash
+        content_hash = hashlib.sha256(
+            json.dumps(raw, sort_keys=True).encode()
+        ).hexdigest()[:16]
+
+        if content_hash in self.seen_hashes:
+            self.rejected.append({"reason": "duplicate", "hash": content_hash})
+            return False
+
+        try:
+            example = TrainingExample(**raw)
+        except Exception as e:
+            self.rejected.append({"reason": str(e), "data": raw})
+            return False
+
+        # Quality filters
+        assistant_msgs = [m for m in example.messages if m["role"] == "assistant"]
+        avg_response_len = sum(len(m["content"]) for m in assistant_msgs) / len(assistant_msgs)
+
+        if avg_response_len < 20:
+            self.rejected.append({"reason": "response_too_short", "hash": content_hash})
+            return False
+
+        if avg_response_len > 8000:
+            self.rejected.append({"reason": "response_too_long", "hash": content_hash})
+            return False
+
+        self.seen_hashes.add(content_hash)
+        self.examples.append(example)
+        return True
+
+    def export(self, output_dir: Path, eval_ratio: float = 0.1):
+        """Export train/eval split as JSONL files."""
+        import random
+        random.seed(42)
+
+        indices = list(range(len(self.examples)))
+        random.shuffle(indices)
+
+        split_point = int(len(indices) * (1 - eval_ratio))
+        train_indices = indices[:split_point]
+        eval_indices = indices[split_point:]
+
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        for name, idx_set in [("train", train_indices), ("eval", eval_indices)]:
+            path = output_dir / f"{name}.jsonl"
+            with open(path, "w") as f:
+                for i in idx_set:
+                    f.write(self.examples[i].json() + "\n")
+
+            print(f"{name}: {len(idx_set)} examples -> {path}")
+
+        # Write rejection log
+        with open(output_dir / "rejected.json", "w") as f:
+            json.dump(self.rejected, f, indent=2)
+
+        print(f"Rejected: {len(self.rejected)} examples")
+```
+
+### Data Quality Checklist
+
+Before every fine-tuning run, we verify:
+
+- **No data leakage:** Eval examples must not appear in training data (we hash-check this).
+- **Label consistency:** Two annotators should agree on at least 90% of examples. Below that, the labels are too noisy for the model to learn a coherent pattern.
+- **Distribution match:** Training data should roughly match the production distribution of categories. Severe imbalance teaches the model to over-predict the majority class.
+- **No PII in training data:** We run a PII detection pass and redact before training. Fine-tuned models can memorize and regurgitate training data.
+
+## Training Strategies: LoRA vs. QLoRA vs. Full Fine-Tuning
+
+| Method | VRAM Required (7B model) | Training Speed | Quality | Best For |
+|--------|-------------------------|----------------|---------|----------|
+| Full fine-tune | 60+ GB | Slow | Highest | When you have budget and >50k examples |
+| LoRA (r=16) | 16-24 GB | Fast | Very good | Most production use cases |
+| QLoRA (4-bit) | 6-10 GB | Medium | Good | Experimentation, constrained hardware |
+| Adapter fusion | 20-30 GB | Medium | Very good | Multi-task models |
+
+We default to LoRA for production fine-tuning. The quality gap between LoRA and full fine-tuning is negligible for most tasks, and the resource savings are dramatic.
+
+```python title="ml/training/finetune_lora.py"
+from dataclasses import dataclass
+from pathlib import Path
+
+import torch
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    TrainingArguments,
+    BitsAndBytesConfig,
+)
+from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from trl import SFTTrainer
+
+
+@dataclass
+class FinetuneConfig:
+    base_model: str = "meta-llama/Llama-3.1-8B-Instruct"
+    dataset_path: str = "data/prepared/train.jsonl"
+    eval_path: str = "data/prepared/eval.jsonl"
+    output_dir: str = "outputs/legal-classifier-v3"
+    lora_r: int = 16
+    lora_alpha: int = 32
+    lora_dropout: float = 0.05
+    epochs: int = 3
+    batch_size: int = 4
+    gradient_accumulation: int = 8
+    learning_rate: float = 2e-4
+    max_seq_length: int = 2048
+    use_4bit: bool = False
+
+
+def train(config: FinetuneConfig):
+    quantization_config = None
+    if config.use_4bit:
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+
+    model = AutoModelForCausalLM.from_pretrained(
+        config.base_model,
+        quantization_config=quantization_config,
+        device_map="auto",
+        torch_dtype=torch.bfloat16,
+        attn_implementation="flash_attention_2",
+    )
+
+    if config.use_4bit:
+        model = prepare_model_for_kbit_training(model)
+
+    lora_config = LoraConfig(
+        r=config.lora_r,
+        lora_alpha=config.lora_alpha,
+        lora_dropout=config.lora_dropout,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
+                        "gate_proj", "up_proj", "down_proj"],
+        task_type="CAUSAL_LM",
+    )
+
+    model = get_peft_model(model, lora_config)
+    model.print_trainable_parameters()
+
+    tokenizer = AutoTokenizer.from_pretrained(config.base_model)
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
+
+    training_args = TrainingArguments(
+        output_dir=config.output_dir,
+        num_train_epochs=config.epochs,
+        per_device_train_batch_size=config.batch_size,
+        gradient_accumulation_steps=config.gradient_accumulation,
+        learning_rate=config.learning_rate,
+        weight_decay=0.01,
+        warmup_ratio=0.03,
+        lr_scheduler_type="cosine",
+        logging_steps=10,
+        save_strategy="epoch",
+        evaluation_strategy="epoch",
+        bf16=True,
+        gradient_checkpointing=True,
+        report_to="wandb",
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
+    )
+
+    trainer = SFTTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=load_jsonl(config.dataset_path),
+        eval_dataset=load_jsonl(config.eval_path),
+        tokenizer=tokenizer,
+        max_seq_length=config.max_seq_length,
+        dataset_text_field="text",
+    )
+
+    trainer.train()
+    trainer.save_model(f"{config.output_dir}/final")
+
+    return trainer.state.best_metric
+```
+
+<Callout type="tip" title="Start With QLoRA for Experimentation">
+Use QLoRA (4-bit quantization) during experimentation to iterate quickly on data quality and hyperparameters. Once you've found a configuration that works, switch to LoRA or full fine-tuning for the production model. The quality difference between QLoRA and LoRA is usually 1-3% on task-specific benchmarks, but QLoRA uses 60% less VRAM.
+</Callout>
+
+## Evaluation Beyond Loss Curves
+
+Training loss going down doesn't mean your model is good. We evaluate fine-tuned models on three axes:
+
+<Step number={1} title="Task-specific accuracy">
+For classification tasks, we measure precision, recall, and F1 per class. For generation tasks, we use a combination of automated metrics (ROUGE, BERTScore) and LLM-as-judge evaluation where a stronger model grades the output.
+</Step>
+
+<Step number={2} title="Regression testing">
+We maintain a set of "golden" examples that the base model handles correctly. If fine-tuning degrades performance on these, the model has overfit to the fine-tuning distribution at the expense of general capability. More than 5% regression on golden examples is a red flag.
+</Step>
+
+<Step number={3} title="Adversarial testing">
+We test with out-of-distribution inputs, prompt injections, and edge cases. Fine-tuned models can become brittle — confidently producing wrong outputs for inputs slightly outside the training distribution.
+</Step>
+
+## Deployment and Cost Analysis
+
+### Serving Infrastructure
+
+We serve fine-tuned models using vLLM behind a FastAPI gateway. For models under 13B parameters, a single A10G instance handles 50-100 requests/second depending on sequence length.
+
+### Cost Comparison: Real Numbers
+
+These are actual costs from a legal document classification project processing 500k documents/month (pricing as of Q4 2024):
+
+| Approach | Cost/Month | Accuracy | P95 Latency |
+|----------|-----------|----------|-------------|
+| GPT-4o with 8-shot prompt | $4,200 | 93.1% | 2,400ms |
+| GPT-4o-mini with 8-shot prompt | $310 | 87.4% | 890ms |
+| Fine-tuned Llama 3.1 8B (LoRA) | $180 (GPU hosting) | 94.7% | 120ms |
+| Fine-tuned Llama 3.1 8B (QLoRA) | $180 (GPU hosting) | 93.2% | 125ms |
+
+The fine-tuned 8B model is cheaper, faster, and more accurate than prompting GPT-4o for this specific task. That's the sweet spot for fine-tuning: narrow, well-defined tasks with sufficient training data.
+
+### When Our Fine-Tuning Failed
+
+Not every project succeeded. We attempted to fine-tune a model for open-ended legal reasoning and got worse results than prompting a frontier model. The task required broad world knowledge and multi-step reasoning that a smaller model simply couldn't replicate, regardless of training data quality. We reverted to Claude 3.5 Sonnet with a carefully engineered prompt chain and RAG — more expensive per request, but actually correct.
+
+## The Iterative Process
+
+Fine-tuning is never one-and-done. Our production models go through a continuous improvement cycle:
+
+1. **Monitor production predictions** — log inputs, outputs, confidence scores, and user feedback.
+2. **Identify failure modes** — cluster low-confidence predictions and user corrections weekly.
+3. **Augment training data** — add corrected examples to the training set, re-validate distribution.
+4. **Retrain and evaluate** — run the full pipeline, compare against the current production model.
+5. **Deploy behind feature flag** — shadow test before promoting to primary.
+
+Each cycle typically improves task accuracy by 1-3 percentage points until diminishing returns set in around 95-97% for most classification tasks.
+
+<KeyTakeaway title="Fine-tuning is an engineering discipline, not a magic trick">
+The models that work in production are built on clean data, rigorous evaluation, and disciplined deployment — not clever hyperparameter tuning. We've seen teams spend weeks optimizing learning rates while their training data contained 15% mislabeled examples. Fix the data first. The model will follow.
+</KeyTakeaway>

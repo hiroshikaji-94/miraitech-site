@@ -1,0 +1,292 @@
+---
+title: "Setting Up a Local LLM Development Environment"
+---
+
+## Why Run Models Locally
+
+Cloud LLM APIs are excellent — until they aren't. Rate limits during a sprint, usage costs that balloon during iteration, latency spikes during peak hours, and the fundamental constraint of sending proprietary code to a third party. At MiraiTech, we run local models for development, testing, and prototyping. Cloud APIs handle production inference. This split gives us fast iteration without the meter running.
+
+The economics are straightforward: our team was spending roughly $1,200/month on API calls during development. A one-time $800 GPU upgrade eliminated about 80% of that. The setup paid for itself in under a month.
+
+## Ollama: The Foundation
+
+Ollama is to local LLMs what Docker was to deployment — it abstracts away the painful parts (model formats, quantization, GPU memory management) and gives you a clean interface. Install it, pull a model, and you have an OpenAI-compatible API running on localhost.
+
+```bash title="initial-setup.sh"
+# Install Ollama (macOS/Linux)
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull models for different use cases
+ollama pull llama3.1:8b          # Fast general purpose, ~4.7GB
+ollama pull codellama:13b        # Code generation, ~7.4GB
+ollama pull deepseek-coder-v2:16b # Best code quality, ~8.9GB
+ollama pull nomic-embed-text     # Embeddings for RAG, ~274MB
+
+# Verify everything is running
+ollama list
+curl http://localhost:11434/api/tags
+```
+
+<Callout type="tip" title="Model selection matters more than model size">
+We tested every popular coding model on our actual codebase. The 13B parameter CodeLlama consistently outperformed the 34B variant on our TypeScript tasks because it fit entirely in VRAM without quantization. A model that runs at full precision in memory beats a larger model that's aggressively quantized to fit. Always benchmark on your own code.
+</Callout>
+
+## GPU Configuration and Memory Management
+
+The single biggest factor in local LLM performance is whether the model fits in GPU memory. Partial offloading — where some layers run on the GPU and others on the CPU — introduces a cliff in performance that makes the model feel unusable.
+
+### Memory Requirements by Model Size
+
+| Model Size | Quantization | VRAM Required | Tokens/sec (RTX 4070) | Tokens/sec (M2 Pro) |
+|---|---|---|---|---|
+| 7-8B | Q4_K_M | ~4.5 GB | ~65 | ~25 |
+| 13B | Q4_K_M | ~7.5 GB | ~35 | ~14 |
+| 13B | Q8_0 | ~13 GB | ~30 | ~11 |
+| 34B | Q4_K_M | ~19 GB | ~12 | ~5 |
+| 70B | Q4_K_M | ~38 GB | N/A | N/A |
+
+For development work — autocomplete, code review, test generation — we target 30+ tokens per second. Below that threshold, the latency breaks flow. This means 13B models are our practical ceiling on a single consumer GPU.
+
+### Tuning Ollama for Development
+
+The default Ollama configuration is conservative. For a dedicated development machine, we override several defaults.
+
+```bash title="ollama-env-config.sh"
+# Set environment variables before starting Ollama
+# On Linux, add these to /etc/systemd/system/ollama.service.d/override.conf
+# On macOS, use launchctl setenv
+
+# Keep models loaded in memory longer (default is 5 minutes)
+export OLLAMA_KEEP_ALIVE="30m"
+
+# Allow parallel requests (useful for editor + terminal simultaneously)
+export OLLAMA_NUM_PARALLEL=2
+
+# Restrict to specific GPU if you have multiple
+export CUDA_VISIBLE_DEVICES=0
+
+# Increase context window for larger code files
+# Note: larger context = more VRAM usage
+export OLLAMA_MAX_LOADED_MODELS=2
+```
+
+## Integration With Your Development Stack
+
+A local model is only useful if it's wired into the tools you already use. We integrate at three levels: editor, CLI, and application.
+
+### Editor Integration
+
+Most AI-powered editors support custom endpoints. Point them at Ollama's OpenAI-compatible API and you get local inference with the same UX.
+
+```json title=".vscode/settings.json"
+{
+  "continue.models": [
+    {
+      "title": "Local CodeLlama",
+      "provider": "ollama",
+      "model": "codellama:13b",
+      "apiBase": "http://localhost:11434"
+    },
+    {
+      "title": "Local Llama 3.1",
+      "provider": "ollama",
+      "model": "llama3.1:8b",
+      "apiBase": "http://localhost:11434"
+    }
+  ]
+}
+```
+
+### Application Integration
+
+For applications that use the OpenAI SDK, switching to a local model requires changing exactly two lines. We use an environment variable to toggle between local and cloud.
+
+```typescript title="lib/ai-client.ts"
+import OpenAI from "openai";
+
+const isLocal = process.env.AI_PROVIDER === "local";
+
+export const ai = new OpenAI({
+  baseURL: isLocal
+    ? "http://localhost:11434/v1"
+    : "https://api.openai.com/v1",
+  apiKey: isLocal ? "ollama" : process.env.OPENAI_API_KEY!,
+});
+
+// Usage is identical regardless of provider
+export async function generateSummary(content: string): Promise<string> {
+  const response = await ai.chat.completions.create({
+    model: isLocal ? "llama3.1:8b" : "gpt-4o-mini",
+    messages: [
+      {
+        role: "system",
+        content: "Summarize the following content in 2-3 sentences.",
+      },
+      { role: "user", content },
+    ],
+    temperature: 0.3,
+    max_tokens: 200,
+  });
+
+  return response.choices[0].message.content ?? "";
+}
+```
+
+<Callout type="warning" title="Don't assume output parity">
+Local models and cloud models will produce different outputs for the same prompt. This is fine for development, but your test suite needs to account for it. We test structure and format, not exact string matches. Assertions like "response contains valid JSON with required fields" work across providers; assertions like "response equals this exact string" break immediately.
+</Callout>
+
+## Testing Against Local Models
+
+We run a lightweight evaluation suite against local models before promoting any prompt changes to production. This catches regressions without burning API credits.
+
+```typescript title="tests/ai-eval.test.ts"
+import { describe, it, expect } from "vitest";
+import { ai } from "@/lib/ai-client";
+
+const MODEL = process.env.AI_MODEL ?? "llama3.1:8b";
+
+describe("prompt evaluation suite", () => {
+  it("should extract structured data from unstructured text", async () => {
+    const response = await ai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content: `Extract contact info as JSON: { "name": string, "email": string, "company": string | null }`,
+        },
+        {
+          role: "user",
+          content: "Hi, I'm Sarah Chen from Acme Corp. Reach me at sarah@acme.co",
+        },
+      ],
+      temperature: 0,
+      response_format: { type: "json_object" },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content ?? "{}");
+    expect(parsed).toHaveProperty("name");
+    expect(parsed).toHaveProperty("email");
+    expect(parsed.email).toMatch(/@/);
+  }, 30_000);
+
+  it("should respect output length constraints", async () => {
+    const response = await ai.chat.completions.create({
+      model: MODEL,
+      messages: [
+        {
+          role: "user",
+          content: "Explain TCP/IP in exactly one sentence.",
+        },
+      ],
+      temperature: 0,
+      max_tokens: 100,
+    });
+
+    const text = response.choices[0].message.content ?? "";
+    const sentences = text.split(/[.!?]+/).filter(Boolean);
+    expect(sentences.length).toBeLessThanOrEqual(2);
+  }, 30_000);
+});
+```
+
+## Building a Local RAG Pipeline
+
+One of our most valuable local setups is a RAG pipeline over internal documentation. We index our codebase, architecture docs, and runbooks, then query them with natural language during development.
+
+```typescript title="scripts/index-docs.ts"
+import { readdir, readFile } from "fs/promises";
+import { join } from "path";
+
+const OLLAMA_BASE = "http://localhost:11434";
+
+async function getEmbedding(text: string): Promise<number[]> {
+  const response = await fetch(`${OLLAMA_BASE}/api/embeddings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "nomic-embed-text",
+      prompt: text,
+    }),
+  });
+  const data = await response.json();
+  return data.embedding;
+}
+
+async function indexDirectory(dir: string) {
+  const files = await readdir(dir, { recursive: true });
+  const documents: Array<{ path: string; content: string; embedding: number[] }> = [];
+
+  for (const file of files) {
+    if (!file.endsWith(".md") && !file.endsWith(".mdx")) continue;
+
+    const content = await readFile(join(dir, file), "utf-8");
+    const chunks = splitIntoChunks(content, 500);
+
+    for (const chunk of chunks) {
+      const embedding = await getEmbedding(chunk);
+      documents.push({ path: file, content: chunk, embedding });
+    }
+  }
+
+  return documents;
+}
+
+function splitIntoChunks(text: string, maxTokens: number): string[] {
+  const paragraphs = text.split(/\n\n+/);
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const para of paragraphs) {
+    if ((current + para).length > maxTokens * 4) {
+      if (current) chunks.push(current.trim());
+      current = para;
+    } else {
+      current += "\n\n" + para;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+```
+
+## The Development Workflow
+
+After months of refinement, our local LLM workflow looks like this:
+
+<Step number={1} title="Pull models on machine setup">
+Run the setup script once per machine. Models are stored in `~/.ollama/models` and shared across projects. We version-lock model names in a `.ollama-models` file in each repo so the team stays synchronized.
+</Step>
+
+<Step number={2} title="Start Ollama alongside your dev server">
+Ollama runs as a background service. No containers, no orchestration. It starts with the OS and listens on port 11434.
+</Step>
+
+<Step number={3} title="Develop with local, test with local, ship with cloud">
+Set `AI_PROVIDER=local` in `.env.development`. All AI features route to Ollama. When the feature is ready, run the eval suite against the production model to verify prompt compatibility, then deploy.
+</Step>
+
+## Cost Comparison After Six Months
+
+| Category | Cloud-Only (Before) | Hybrid Local/Cloud (After) |
+|---|---|---|
+| Monthly API costs | $1,200 | $280 |
+| Development iteration speed | Bounded by rate limits | Unbounded |
+| Offline development | Impossible | Fully functional |
+| Data privacy concerns | Required legal review | None for dev data |
+| Hardware investment | $0 | $800 one-time |
+| Break-even point | — | 1 month |
+
+## Limitations to Be Honest About
+
+Local models are not a replacement for frontier cloud models. We use them for different tasks:
+
+- **Local excels at:** autocomplete, boilerplate generation, test writing, documentation drafts, embeddings, RAG retrieval
+- **Cloud excels at:** complex reasoning, multi-step planning, novel architecture suggestions, long-context analysis
+- **Neither replaces:** code review by humans, architecture decisions, security audits
+
+The goal is not to eliminate cloud AI — it's to use the right tool at the right layer and stop paying production prices for development experimentation.
+
+<KeyTakeaway title="Local LLMs are a development tool, not a production replacement">
+Run local models to iterate faster, reduce costs, and work offline. Use cloud models for production inference where quality ceilings matter. The OpenAI-compatible API standard makes switching between them trivial — design your abstraction layer once, and the provider becomes a configuration detail.
+</KeyTakeaway>

@@ -1,0 +1,303 @@
+---
+title: "CI/CD for AI Applications: Beyond Traditional Testing"
+---
+
+## Traditional CI/CD Breaks Down for ML
+
+When we shipped our first ML-powered feature — a document classification service — we plugged it into our existing CI/CD pipeline. Unit tests passed. Integration tests passed. The model was deployed. Within 48 hours, classification accuracy had dropped from 94% to 71% because the training data distribution had silently drifted from production inputs.
+
+The fundamental issue: traditional CI/CD verifies *code correctness*, but AI applications fail along dimensions that code tests can't capture — data quality, model performance, inference latency, and cost. We needed a pipeline that treats models as first-class artifacts alongside code.
+
+## Pipeline Architecture
+
+Our CI/CD pipeline for AI applications has five stages that go well beyond `lint -> test -> build -> deploy`:
+
+| Stage | What It Verifies | Blocks Deploy? |
+|-------|-----------------|----------------|
+| Code quality | Linting, type checks, unit tests | Yes |
+| Data validation | Schema conformance, distribution checks | Yes |
+| Model evaluation | Accuracy, latency, bias metrics against baseline | Yes (if regression) |
+| Shadow deployment | Side-by-side comparison with production model | No (advisory) |
+| Canary release | Real traffic on a subset of users | Yes (if error rate spikes) |
+
+### The Evaluation Pipeline
+
+This is the core of our approach. Every pull request that touches model code, training data, or feature engineering triggers an evaluation run:
+
+```yaml title=".github/workflows/model-evaluation.yml"
+name: Model Evaluation
+
+on:
+  pull_request:
+    paths:
+      - 'ml/**'
+      - 'data/features/**'
+      - 'configs/model_*.yaml'
+
+jobs:
+  evaluate:
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Pull evaluation dataset
+        run: |
+          dvc pull data/eval/
+          echo "Dataset version: $(dvc version)"
+          echo "Eval set size: $(wc -l < data/eval/golden_set.jsonl)"
+
+      - name: Run model evaluation
+        run: |
+          python -m ml.evaluate \
+            --model-config configs/model_candidate.yaml \
+            --eval-data data/eval/golden_set.jsonl \
+            --baseline-metrics artifacts/baseline_metrics.json \
+            --output artifacts/eval_report.json
+
+      - name: Check regression thresholds
+        run: |
+          python -m ml.ci.check_regression \
+            --report artifacts/eval_report.json \
+            --max-accuracy-drop 0.02 \
+            --max-latency-increase-pct 15 \
+            --max-cost-increase-pct 10
+
+      - name: Post evaluation summary to PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const report = require('./artifacts/eval_report.json');
+            const body = `## Model Evaluation Results
+            | Metric | Baseline | Candidate | Delta |
+            |--------|----------|-----------|-------|
+            | Accuracy | ${report.baseline.accuracy} | ${report.candidate.accuracy} | ${report.delta.accuracy} |
+            | P95 Latency | ${report.baseline.p95_latency}ms | ${report.candidate.p95_latency}ms | ${report.delta.p95_latency}ms |
+            | Cost/1k requests | $${report.baseline.cost_per_1k} | $${report.candidate.cost_per_1k} | $${report.delta.cost_per_1k} |
+            `;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
+```
+
+<Callout type="warning" title="Pin Your Evaluation Datasets">
+Evaluation datasets must be versioned and immutable per release. If your eval set changes between runs, you can't meaningfully compare metrics. We use DVC to version datasets alongside code, and our CI pipeline refuses to run evaluation if the eval set has uncommitted changes.
+</Callout>
+
+## Dataset Versioning
+
+We treat datasets like code — versioned, reviewed, and immutable once tagged. Our stack uses DVC backed by S3 for large files:
+
+```python title="ml/data/validate.py"
+import json
+import sys
+from pathlib import Path
+from dataclasses import dataclass
+from collections import Counter
+
+import numpy as np
+from scipy import stats
+
+
+@dataclass
+class ValidationReport:
+    total_samples: int
+    label_distribution: dict[str, int]
+    schema_violations: list[str]
+    distribution_drift: float
+    is_valid: bool
+
+
+def validate_dataset(
+    dataset_path: Path,
+    reference_path: Path,
+    max_drift_threshold: float = 0.1,
+) -> ValidationReport:
+    """Validate a dataset against a reference distribution.
+
+    Uses Jensen-Shannon divergence to detect distribution drift.
+    A drift score above the threshold blocks the pipeline.
+    """
+    with open(dataset_path) as f:
+        samples = [json.loads(line) for line in f]
+
+    with open(reference_path) as f:
+        reference = [json.loads(line) for line in f]
+
+    # Schema validation
+    required_fields = {"text", "label", "source", "timestamp"}
+    violations = []
+    for i, sample in enumerate(samples):
+        missing = required_fields - set(sample.keys())
+        if missing:
+            violations.append(f"Row {i}: missing fields {missing}")
+        if sample.get("text") and len(sample["text"]) > 10_000:
+            violations.append(f"Row {i}: text exceeds 10k chars")
+
+    # Distribution drift detection
+    current_dist = Counter(s["label"] for s in samples)
+    ref_dist = Counter(s["label"] for s in reference)
+    all_labels = sorted(set(current_dist) | set(ref_dist))
+
+    current_probs = np.array([current_dist.get(l, 0) for l in all_labels], dtype=float)
+    ref_probs = np.array([ref_dist.get(l, 0) for l in all_labels], dtype=float)
+    current_probs /= current_probs.sum()
+    ref_probs /= ref_probs.sum()
+
+    drift = float(np.sqrt(stats.entropy(current_probs, ref_probs) / 2))
+
+    return ValidationReport(
+        total_samples=len(samples),
+        label_distribution=dict(current_dist),
+        schema_violations=violations,
+        distribution_drift=drift,
+        is_valid=len(violations) == 0 and drift < max_drift_threshold,
+    )
+
+
+if __name__ == "__main__":
+    report = validate_dataset(
+        Path(sys.argv[1]),
+        Path(sys.argv[2]),
+    )
+    print(json.dumps(report.__dict__, indent=2))
+    sys.exit(0 if report.is_valid else 1)
+```
+
+## Feature Flags for Models
+
+We deploy models behind feature flags, which gives us instant rollback without redeploying:
+
+```python title="ml/serving/router.py"
+from dataclasses import dataclass
+from typing import Protocol
+import hashlib
+
+import launchdarkly_client as ld
+
+
+class Classifier(Protocol):
+    def predict(self, text: str) -> dict[str, float]: ...
+
+
+@dataclass
+class ModelRouter:
+    """Routes inference requests to the appropriate model version
+    based on feature flags and traffic allocation."""
+
+    models: dict[str, Classifier]
+    ld_client: ld.LDClient
+
+    def route(self, user_id: str, text: str) -> dict:
+        # Feature flag determines which model version to use
+        model_version = self.ld_client.variation(
+            "classifier-model-version",
+            {"key": user_id},
+            default="v2-stable",  # fallback if flag service is down
+        )
+
+        if model_version not in self.models:
+            model_version = "v2-stable"
+
+        model = self.models[model_version]
+        prediction = model.predict(text)
+
+        return {
+            "prediction": prediction,
+            "model_version": model_version,
+            "routed_by": "feature_flag",
+        }
+```
+
+### A/B Testing Infrastructure
+
+For model A/B tests, we hash the user ID to ensure consistent assignment and log every prediction with the model version for downstream analysis:
+
+| Component | Responsibility |
+|-----------|---------------|
+| Feature flag service | Traffic split, targeting rules, kill switch |
+| Prediction logger | Records model version, input hash, output, latency |
+| Analysis pipeline | Computes per-variant metrics nightly |
+| Dashboard | Visualizes A/B results with confidence intervals |
+
+<Callout type="tip" title="Always Log the Model Version">
+Every prediction in production must be tagged with the exact model version, feature flags active, and a request ID. Without this, debugging a production accuracy drop becomes guesswork. We've burned entire weekends tracing issues that would have been obvious with proper prediction logging.
+</Callout>
+
+## Rollback Strategies
+
+Model rollbacks are harder than code rollbacks because model artifacts are large and loading a model takes time. Our approach:
+
+<Step number={1} title="Keep the previous model warm">
+We always keep N-1 model version loaded in memory (or at least cached on disk). This lets us roll back in seconds rather than the minutes it takes to download and load a model from artifact storage.
+</Step>
+
+<Step number={2} title="Feature flag instant rollback">
+Changing the feature flag value switches all traffic to the previous model version immediately. No deployment needed. This is our primary rollback mechanism for production incidents.
+</Step>
+
+<Step number={3} title="Automated rollback triggers">
+We monitor prediction confidence distributions. If the mean confidence drops below the baseline by more than 2 standard deviations for 5 consecutive minutes, the system automatically rolls back and pages the on-call engineer.
+</Step>
+
+## Cost Monitoring in the Pipeline
+
+AI applications have a unique cost dimension: inference costs scale with traffic and model size. We bake cost estimation into CI (rates shown are from early 2025 — check provider pricing pages for current numbers):
+
+```python title="ml/ci/cost_estimator.py"
+def estimate_monthly_cost(
+    model_config: dict,
+    estimated_monthly_requests: int,
+    avg_input_tokens: int = 500,
+    avg_output_tokens: int = 150,
+) -> dict:
+    """Estimate monthly inference cost based on model configuration."""
+
+    COST_PER_1K_TOKENS = {
+        "gpt-4o": {"input": 0.0025, "output": 0.01},
+        "gpt-4o-mini": {"input": 0.00015, "output": 0.0006},
+        "claude-3.5-sonnet": {"input": 0.003, "output": 0.015},
+        "self-hosted-llama-70b": {"input": 0.0008, "output": 0.0008},
+    }
+
+    model_name = model_config["model"]
+    costs = COST_PER_1K_TOKENS.get(model_name)
+
+    if not costs:
+        return {"error": f"Unknown model: {model_name}", "estimated_cost": None}
+
+    monthly_input_cost = (estimated_monthly_requests * avg_input_tokens / 1000) * costs["input"]
+    monthly_output_cost = (estimated_monthly_requests * avg_output_tokens / 1000) * costs["output"]
+    total = monthly_input_cost + monthly_output_cost
+
+    return {
+        "model": model_name,
+        "monthly_requests": estimated_monthly_requests,
+        "monthly_input_cost": round(monthly_input_cost, 2),
+        "monthly_output_cost": round(monthly_output_cost, 2),
+        "total_monthly_cost": round(total, 2),
+        "cost_per_request": round(total / estimated_monthly_requests, 6),
+    }
+```
+
+Our CI pipeline comments the cost delta on every PR. If switching from `gpt-4o-mini` to `claude-3.5-sonnet` would increase monthly spend by $3,000, the team knows before merging — not when the invoice arrives.
+
+## What We Got Wrong Initially
+
+### Evaluating on Static Benchmarks Only
+
+Our initial eval suite used a frozen test set that was perfectly clean and balanced. Production data was messy, imbalanced, and full of edge cases. We now maintain two eval sets: a clean benchmark for regression tracking and a "production-like" set sampled from actual user inputs (with PII stripped).
+
+### Treating Model Updates Like Code Updates
+
+Early on, we deployed model updates with the same confidence as code changes. But a model change can degrade in ways that take days to surface — accuracy might hold on common cases while collapsing on tail queries. Shadow deployments, where the new model runs alongside production without serving results, are essential for catching these slow-burn regressions.
+
+<KeyTakeaway title="Your pipeline is your safety net">
+In AI applications, the pipeline isn't just about shipping faster — it's about catching the failures that unit tests structurally cannot detect. Data drift, accuracy regression, cost spikes, and latency degradation all need automated gates. Build these into your pipeline from day one; retrofitting them after an incident is painful and expensive.
+</KeyTakeaway>

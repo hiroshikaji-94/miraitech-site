@@ -1,0 +1,244 @@
+---
+title: "Scaling WebSocket Connections to 100k Concurrent Users"
+---
+
+## The Problem With WebSockets at Scale
+
+WebSockets are deceptively simple. A single Node.js process can comfortably hold 10-15k concurrent connections before memory pressure and event loop latency start degrading the experience for everyone. We learned this the hard way when a client's real-time collaboration platform went from 2,000 daily active users to 40,000 in three months.
+
+The challenge isn't opening connections — it's keeping them alive, routing messages efficiently, and failing gracefully when infrastructure inevitably hiccups.
+
+## Architecture Overview
+
+Our production architecture separates concerns into three layers:
+
+| Layer | Responsibility | Technology |
+|-------|---------------|------------|
+| Edge | TLS termination, sticky routing | HAProxy / AWS NLB |
+| Connection | Socket lifecycle, heartbeats | Node.js + ws |
+| Messaging | Pub/sub fanout, presence | Redis Cluster |
+
+This separation means we can scale connection servers horizontally without worrying about message delivery semantics, and scale the messaging layer independently based on channel volume.
+
+### Connection Server Design
+
+Each connection server is stateless from the application's perspective. It holds socket references in memory but delegates all business logic to the messaging layer. Here's our stripped-down connection handler:
+
+```typescript title="src/ws/connection-handler.ts"
+import { WebSocketServer, WebSocket } from 'ws';
+import { RedisClient } from './redis';
+import { metrics } from './monitoring';
+
+const HEARTBEAT_INTERVAL = 30_000;
+const MAX_BACKPRESSURE = 1024 * 1024; // 1MB
+
+interface ClientSocket extends WebSocket {
+  isAlive: boolean;
+  userId: string;
+  channels: Set<string>;
+}
+
+export function createConnectionHandler(wss: WebSocketServer, redis: RedisClient) {
+  wss.on('connection', (ws: ClientSocket, req) => {
+    ws.isAlive = true;
+    ws.channels = new Set();
+    metrics.connectionsActive.inc();
+
+    ws.on('pong', () => { ws.isAlive = true; });
+
+    ws.on('message', async (raw) => {
+      // Backpressure check — drop messages if the client
+      // can't keep up rather than buffering unboundedly
+      if (ws.bufferedAmount > MAX_BACKPRESSURE) {
+        metrics.messagesDropped.inc({ reason: 'backpressure' });
+        return;
+      }
+
+      try {
+        const msg = JSON.parse(raw.toString());
+        await handleMessage(ws, msg, redis);
+      } catch (err) {
+        ws.send(JSON.stringify({ error: 'invalid_message' }));
+      }
+    });
+
+    ws.on('close', () => {
+      metrics.connectionsActive.dec();
+      cleanupSubscriptions(ws, redis);
+    });
+  });
+
+  // Heartbeat sweep — terminates zombies
+  setInterval(() => {
+    wss.clients.forEach((ws: ClientSocket) => {
+      if (!ws.isAlive) {
+        metrics.connectionsTerminated.inc({ reason: 'heartbeat_timeout' });
+        return ws.terminate();
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, HEARTBEAT_INTERVAL);
+}
+```
+
+<Callout type="warning" title="Don't Rely on TCP Keepalives">
+TCP keepalives operate at the OS level with intervals often measured in hours. Application-level heartbeats (ping/pong frames) at 30-second intervals are essential for detecting dead connections behind NATs, proxies, and mobile networks where connections silently drop.
+</Callout>
+
+## Horizontal Scaling With Redis Pub/Sub
+
+The core scaling mechanism is Redis pub/sub. When a user sends a message to a channel, the connection server publishes it to Redis. Every connection server subscribing to that channel receives the message and fans it out to its local connected clients.
+
+```go title="internal/fanout/redis_subscriber.go"
+package fanout
+
+import (
+	"context"
+	"encoding/json"
+	"log/slog"
+	"sync"
+
+	"github.com/redis/go-redis/v9"
+)
+
+type Fanout struct {
+	rdb       *redis.Client
+	mu        sync.RWMutex
+	listeners map[string][]chan<- []byte
+}
+
+func New(rdb *redis.Client) *Fanout {
+	return &Fanout{
+		rdb:       rdb,
+		listeners: make(map[string][]chan<- []byte),
+	}
+}
+
+func (f *Fanout) Subscribe(ctx context.Context, channel string, ch chan<- []byte) {
+	f.mu.Lock()
+	f.listeners[channel] = append(f.listeners[channel], ch)
+	needsSubscribe := len(f.listeners[channel]) == 1
+	f.mu.Unlock()
+
+	if needsSubscribe {
+		go f.redisSubscribe(ctx, channel)
+	}
+}
+
+func (f *Fanout) redisSubscribe(ctx context.Context, channel string) {
+	sub := f.rdb.Subscribe(ctx, channel)
+	defer sub.Close()
+
+	for msg := range sub.Channel() {
+		f.mu.RLock()
+		listeners := f.listeners[channel]
+		f.mu.RUnlock()
+
+		for _, ch := range listeners {
+			select {
+			case ch <- []byte(msg.Payload):
+			default:
+				slog.Warn("listener backpressure, dropping message",
+					"channel", channel)
+			}
+		}
+	}
+}
+```
+
+### Why Not Redis Streams?
+
+We evaluated Redis Streams for guaranteed delivery but found the overhead wasn't justified for our use case. Pub/sub's fire-and-forget model works when you accept that WebSocket messages are inherently best-effort — if a client misses a message during reconnection, it fetches the current state via HTTP. This hybrid approach is simpler and more resilient than trying to build exactly-once delivery over WebSockets.
+
+## Sticky Sessions and Load Balancing
+
+WebSocket connections are long-lived, so you need sticky routing at the load balancer layer. We use source-IP hashing at the network load balancer:
+
+| Strategy | Pros | Cons |
+|----------|------|------|
+| Source IP hash | Simple, no cookies needed | Uneven distribution behind corporate NATs |
+| Cookie-based | Even distribution | Requires HTTP upgrade path |
+| Connection ID header | Precise control | Custom client logic required |
+
+For most deployments, source IP hashing with a fallback rebalance mechanism is sufficient. We run a background process that monitors per-server connection counts and triggers a gradual drain when imbalance exceeds 20%.
+
+## Backpressure and Graceful Degradation
+
+### Server-Side Backpressure
+
+The `bufferedAmount` property on a WebSocket is your canary. When a client can't consume messages fast enough, the kernel send buffer fills up, and `bufferedAmount` grows. We enforce a hard cap — any client exceeding 1MB of buffered data gets deprioritized, receiving only critical messages until the buffer drains.
+
+### Graceful Degradation Under Load
+
+When connection servers approach capacity, we implement three tiers of degradation:
+
+<Step number={1} title="Reduce broadcast frequency">
+Non-critical updates (typing indicators, cursor positions) are throttled from real-time to 2-second batches. Users barely notice, but it cuts message volume by 60-70%.
+</Step>
+
+<Step number={2} title="Shed non-essential connections">
+Read-only spectators on collaborative documents are migrated to long-polling with 5-second intervals. This frees socket slots for active editors.
+</Step>
+
+<Step number={3} title="Reject new connections with retry-after">
+New connection attempts receive a 503 with a `Retry-After` header. Clients implement exponential backoff with jitter, preventing thundering herd on recovery.
+</Step>
+
+## Monitoring That Actually Matters
+
+After running this stack for two years, we've narrowed our dashboard to the metrics that actually predict incidents:
+
+- **Event loop lag (p99):** Above 100ms means your message processing is too slow. This is the first metric to spike before users notice latency.
+- **Connections per server (current vs. capacity):** We alert at 70% capacity to allow time for scaling.
+- **Redis pub/sub subscriber count:** A mismatch between expected and actual subscribers indicates a connection server has silently disconnected from Redis.
+- **Message fanout ratio:** Messages published vs. messages delivered. A sustained ratio below expected indicates dropped messages.
+
+```typescript title="src/monitoring/ws-metrics.ts"
+import { Histogram, Gauge, Counter } from 'prom-client';
+
+export const metrics = {
+  connectionsActive: new Gauge({
+    name: 'ws_connections_active',
+    help: 'Currently active WebSocket connections',
+    labelNames: ['server_id'],
+  }),
+  messageLatency: new Histogram({
+    name: 'ws_message_latency_seconds',
+    help: 'End-to-end message delivery latency',
+    buckets: [0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1],
+  }),
+  messagesDropped: new Counter({
+    name: 'ws_messages_dropped_total',
+    help: 'Messages dropped due to backpressure or errors',
+    labelNames: ['reason'],
+  }),
+  connectionsTerminated: new Counter({
+    name: 'ws_connections_terminated_total',
+    help: 'Connections terminated by the server',
+    labelNames: ['reason'],
+  }),
+};
+```
+
+<Callout type="tip" title="Track Reconnection Patterns">
+A high reconnection rate from specific IP ranges often points to flaky corporate firewalls or aggressive mobile OS power management rather than a problem on your end. Segmenting reconnection metrics by client type saves hours of debugging.
+</Callout>
+
+## Lessons From Production
+
+### Connection Storms Are Real
+
+When a connection server restarts, every client reconnects simultaneously. Without jitter in reconnection logic, you get a thundering herd that can cascade across your cluster. We enforce client-side reconnection delays of `min(30s, baseDelay * 2^attempt + random(0, 1000)ms)`.
+
+### Memory Leaks Are Subtle
+
+Each WebSocket connection carries per-socket buffers, event listeners, and application state. A single unremoved event listener that captures a closure over a large object will slowly consume your server's memory over days. We run weekly heap snapshots in staging under synthetic load to catch these early.
+
+### Redis Pub/Sub Has Limits
+
+A single Redis instance handles roughly 500k messages/second for pub/sub, but subscriber fan-out is the bottleneck. If you have 50 connection servers each subscribing to 10,000 channels, Redis spends most of its time iterating subscriber lists. We shard channels across a Redis Cluster and use channel name hashing to ensure even distribution.
+
+<KeyTakeaway title="Scale the boring parts first">
+Before reaching for exotic solutions like custom TCP multiplexing or QUIC, exhaust the straightforward optimizations: heartbeat tuning, backpressure enforcement, connection draining, and Redis Cluster sharding. We hit 100k concurrent connections with commodity hardware by being disciplined about these fundamentals, not by rewriting the transport layer.
+</KeyTakeaway>

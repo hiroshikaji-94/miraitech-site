@@ -1,0 +1,533 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─────────────────────────────────────────────────────────────────
+   Design Tokens — "Signal & Structure"
+   Usage: rgb(var(--color-background) / 0.8)
+───────────────────────────────────────────────────────────────── */
+
+/* Light is the default theme — bright, clean, professional.
+   Dark remains available via the header toggle (.dark on <html>). */
+:root {
+  color-scheme: light;
+
+  --color-background:  255 255 255;   /* pure white */
+  --color-surface:     248 250 252;   /* slate-50 — cards, panels */
+  --color-surface-high:241 245 249;   /* slate-100 — elevated / hover */
+  --color-foreground:   15  23  42;   /* slate-900 — 17:1 on white */
+  --color-foreground-2: 51  65  85;   /* slate-700 — 9.6:1 */
+  --color-foreground-3:100 116 139;   /* slate-500 — 4.6:1, labels & meta */
+  --color-border:       15  23  42;   /* slate tint, used at low alpha */
+  --color-accent-blue:  37  99 235;   /* blue-600 */
+  --color-accent-violet:109  40 217;  /* violet-700 — hover state */
+  --color-accent-warm: 124  58 237;   /* violet-600 — primary actions */
+
+  /* Glow colours — kept deep so they read as a soft tint on white */
+  --color-glow-warm:   124  58 237;
+  --color-glow-blue:    37  99 235;
+  --color-glow-violet: 109  40 217;
+
+  /* Background animation intensity — soft on light, rich on dark */
+  --bg-glow-multiplier: 0.45;
+  --bg-blur-boost: 20px;
+
+  /* Elevation */
+  --shadow-card:       0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
+  --shadow-card-hover: 0 1px 2px rgb(15 23 42 / 0.05), 0 10px 32px rgb(15 23 42 / 0.10);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --color-background:    4   4  12;   /* deep space — richer than flat black */
+  --color-surface:      10  10  22;   /* dark surface with depth */
+  --color-surface-high: 18  18  34;   /* elevated — slight indigo */
+  --color-foreground:  235 232 225;   /* warm off-white #EBE8E1 */
+  --color-foreground-2:185 182 175;   /* muted — 10:1 on bg */
+  --color-foreground-3:145 142 135;   /* dim — 6.2:1 on bg */
+  --color-border:      255 255 255;
+  --color-accent-blue:  59 130 246;   /* structural blue */
+  --color-accent-violet:139  92 246;  /* reserved, minimal use */
+  --color-accent-warm: 163 106 254;   /* logo violet #A36AFE */
+
+  --color-glow-warm:   163 106 254;
+  --color-glow-blue:    59 130 246;
+  --color-glow-violet: 139  92 246;
+
+  --bg-glow-multiplier: 1;
+  --bg-blur-boost: 0px;
+
+  --shadow-card:       0 1px 0 0 rgb(255 255 255 / 0.03), 0 2px 12px rgb(0 0 0 / 0.2);
+  --shadow-card-hover: 0 1px 0 0 rgb(255 255 255 / 0.05), 0 4px 24px rgb(0 0 0 / 0.3);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Base
+───────────────────────────────────────────────────────────────── */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-color: rgb(var(--color-border) / 0.06);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  body {
+    background-color: rgb(var(--color-background));
+    color: rgb(var(--color-foreground));
+    font-family: var(--font-inter), system-ui, sans-serif;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    min-height: 100dvh;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  img, video { max-width: 100%; height: auto; }
+
+  ::selection {
+    background-color: rgb(var(--color-accent-warm) / 0.25);
+    color: rgb(var(--color-foreground));
+  }
+
+  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--color-foreground-3) / 0.3);
+    border-radius: 0;
+  }
+
+  :focus-visible {
+    outline: 1px solid rgb(var(--color-accent-warm) / 0.8);
+    outline-offset: 2px;
+    border-radius: 0;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Hydration safety net — ensure Framer Motion content is visible
+   even if JS hydration is delayed or animations don't fire.
+   The animation overrides inline opacity:0 after 1.5s.
+───────────────────────────────────────────────────────────────── */
+
+@keyframes hydration-reveal {
+  to { opacity: 1 !important; transform: none !important; }
+}
+
+#main-content [style*="opacity"] {
+  animation: hydration-reveal 0s 1.5s both;
+}
+
+/* Once Framer Motion is active it sets will-change, so skip the fallback */
+#main-content [style*="opacity"][style*="will-change"] {
+  animation: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Utility Classes
+───────────────────────────────────────────────────────────────── */
+
+@layer utilities {
+  /* Gradient text — blue → violet */
+  .gradient-text {
+    background: linear-gradient(
+      135deg,
+      rgb(var(--color-accent-blue)),
+      rgb(var(--color-accent-warm))
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .gradient-text-r {
+    background: linear-gradient(
+      135deg,
+      rgb(var(--color-accent-warm)),
+      rgb(var(--color-accent-blue))
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Engineering grid background */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgb(var(--color-border) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--color-border) / 0.04) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  .bg-grid-fine {
+    background-image:
+      linear-gradient(rgb(var(--color-border) / 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--color-border) / 0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  /* Crosshair / tick marks background */
+  .bg-dots {
+    background-image: radial-gradient(circle, rgb(var(--color-border) / 0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Noise texture overlay */
+  .bg-noise {
+    position: relative;
+  }
+  .bg-noise::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.015;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* Glass — sharper */
+  .glass {
+    background: rgb(var(--color-surface) / 0.8);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    border: 1px solid rgb(var(--color-border) / 0.06);
+  }
+
+  /* Radial glow — subtle, for rare use */
+  .bg-glow-blue {
+    background: radial-gradient(
+      ellipse 60% 40% at 50% 0%,
+      rgb(var(--color-accent-blue) / 0.06) 0%,
+      transparent 100%
+    );
+  }
+
+  .bg-glow-warm {
+    background: radial-gradient(
+      ellipse 60% 40% at 50% 0%,
+      rgb(var(--color-accent-warm) / 0.04) 0%,
+      transparent 100%
+    );
+  }
+
+  /* Keep for backwards compat */
+  .bg-glow-violet {
+    background: radial-gradient(
+      ellipse 60% 40% at 50% 0%,
+      rgb(var(--color-accent-violet) / 0.06) 0%,
+      transparent 100%
+    );
+  }
+
+  .gradient-border {
+    position: relative;
+    border: 1px solid transparent;
+    background-clip: padding-box;
+  }
+  .gradient-border::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgb(var(--color-accent-blue) / 0.3),
+      rgb(var(--color-accent-warm) / 0.3)
+    );
+  }
+
+  /* Section index — the "01" markers */
+  .section-index {
+    font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    color: rgb(var(--color-foreground-3));
+  }
+
+  .text-balance { text-wrap: balance; }
+  .text-pretty  { text-wrap: pretty; }
+  .no-transition * { transition: none !important; }
+  .counter-reset-item  { counter-reset: item; }
+  .counter-increment-item { counter-increment: item; }
+  .content-counter-item { content: counter(item); }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Article Prose — rehype-pretty-code styling
+───────────────────────────────────────────────────────────────── */
+
+.article-prose figure[data-rehype-pretty-code-figure] {
+  margin: 1.5rem 0;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  border: 1px solid rgb(var(--color-border) / 0.06);
+  background: rgb(var(--color-surface));
+}
+
+.article-prose figure[data-rehype-pretty-code-figure] pre {
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  background: transparent !important;
+}
+
+.article-prose figure[data-rehype-pretty-code-figure] code {
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  counter-reset: line;
+  display: grid;
+}
+
+.article-prose figcaption[data-rehype-pretty-code-title] {
+  padding: 0.625rem 1rem;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: rgb(var(--color-foreground-3));
+  background: rgb(var(--color-surface-high));
+  border-bottom: 1px solid rgb(var(--color-border) / 0.06);
+}
+
+.article-prose code[data-line-numbers] > [data-line]::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 1rem;
+  margin-right: 1.25rem;
+  text-align: right;
+  color: rgb(var(--color-foreground-3) / 0.4);
+  font-size: 0.8em;
+}
+
+.article-prose [data-line][data-highlighted-line] {
+  background: rgb(var(--color-accent-blue) / 0.08);
+  margin: 0 -1.5rem;
+  padding: 0 1.5rem;
+  border-left: 2px solid rgb(var(--color-accent-warm) / 0.6);
+}
+
+.article-prose [data-highlighted-chars] {
+  background: rgb(var(--color-accent-warm) / 0.12);
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+}
+
+.article-prose [data-line] {
+  padding: 0 1.5rem;
+  margin: 0 -1.5rem;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Meridian — Living background animations
+───────────────────────────────────────────────────────────────── */
+
+@keyframes meridian-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(3%, 5%) scale(1.05); }
+  50%      { transform: translate(-2%, 3%) scale(0.98); }
+  75%      { transform: translate(4%, -2%) scale(1.02); }
+}
+
+@keyframes meridian-drift-reverse {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(-4%, -3%) scale(1.03); }
+  50%      { transform: translate(3%, -5%) scale(0.97); }
+  75%      { transform: translate(-2%, 4%) scale(1.04); }
+}
+
+@keyframes meridian-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.1); }
+}
+
+.animate-meridian-drift {
+  animation: meridian-drift 25s ease-in-out infinite;
+}
+
+.animate-meridian-drift-reverse {
+  animation: meridian-drift-reverse 30s ease-in-out infinite;
+}
+
+.animate-meridian-pulse {
+  animation: meridian-pulse 15s ease-in-out infinite;
+}
+
+/* ─── Meridian orb styles ─────────────────────────────────────── */
+/* Moved from inline styles to CSS classes to prevent hydration
+   mismatches caused by browser decomposition of shorthand props. */
+
+.meridian-orb-warm {
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-glow-warm)) 0%,
+    transparent 70%
+  );
+  filter: blur(80px);
+  opacity: calc(var(--meridian-orb-opacity, 0.1) * var(--bg-glow-multiplier, 1));
+}
+
+.meridian-orb-blue {
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-glow-blue)) 0%,
+    transparent 70%
+  );
+  filter: blur(100px);
+  opacity: calc(var(--meridian-orb-opacity, 0.1) * var(--bg-glow-multiplier, 1));
+}
+
+.meridian-orb-violet {
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-glow-violet)) 0%,
+    transparent 70%
+  );
+  filter: blur(120px);
+  opacity: calc(var(--meridian-orb-opacity, 0.1) * var(--bg-glow-multiplier, 1));
+}
+
+.meridian-lines {
+  background-size: 200px 200px, 40px 40px, 200px 200px, 40px 40px;
+}
+
+.meridian-diagonal {
+  background-image: linear-gradient(
+    135deg,
+    transparent 40%,
+    rgb(var(--color-glow-warm)) 50%,
+    transparent 60%
+  );
+  opacity: var(--meridian-line-opacity, 0.04);
+}
+
+.meridian-vignette {
+  background-image: radial-gradient(
+    ellipse 80% 60% at 50% 50%,
+    transparent 0%,
+    rgb(var(--color-background)) 100%
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Ambient Glow — lightweight single/dual orb backgrounds
+   Uses CSS custom properties for position and opacity.
+───────────────────────────────────────────────────────────────── */
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  opacity: calc(var(--ambient-opacity, 0.1) * var(--bg-glow-multiplier, 1));
+}
+
+.ambient-orb-warm {
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-glow-warm)) 0%,
+    transparent 70%
+  );
+  filter: blur(80px);
+}
+
+.ambient-orb-blue {
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-glow-blue)) 0%,
+    transparent 70%
+  );
+  filter: blur(90px);
+}
+
+.ambient-orb-violet {
+  background-image: radial-gradient(
+    circle,
+    rgb(var(--color-glow-violet)) 0%,
+    transparent 70%
+  );
+  filter: blur(100px);
+}
+
+/* Slow ambient drift — gentler than meridian, for secondary sections */
+@keyframes ambient-drift {
+  0%, 100% { transform: translate(0, 0); }
+  33%      { transform: translate(2%, 3%); }
+  66%      { transform: translate(-1.5%, -2%); }
+}
+
+@keyframes ambient-drift-reverse {
+  0%, 100% { transform: translate(0, 0); }
+  33%      { transform: translate(-2%, -1.5%); }
+  66%      { transform: translate(1.5%, 2.5%); }
+}
+
+.animate-ambient-drift {
+  animation: ambient-drift 35s ease-in-out infinite;
+}
+
+.animate-ambient-drift-reverse {
+  animation: ambient-drift-reverse 40s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Flow Lines — animated SVG curved paths
+   CSS stroke-dashoffset animation for a slow drawing effect.
+───────────────────────────────────────────────────────────────── */
+
+@keyframes flow-draw {
+  0%   { stroke-dashoffset: 1200; opacity: 0; }
+  3%   { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+@keyframes flow-draw-reverse {
+  0%   { stroke-dashoffset: -1200; opacity: 0; }
+  3%   { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { stroke-dashoffset: 0; opacity: 0; }
+}
+
+.flow-line {
+  fill: none;
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  stroke-linecap: round;
+}
+
+.flow-line-1 {
+  animation: flow-draw 18s ease-in-out infinite;
+}
+
+.flow-line-2 {
+  animation: flow-draw-reverse 22s ease-in-out infinite;
+  animation-delay: 4s;
+}
+
+.flow-line-3 {
+  animation: flow-draw 25s ease-in-out infinite;
+  animation-delay: 8s;
+}
+
+/* Gentle shimmer for flow line glow */
+@keyframes flow-glow {
+  0%, 100% { opacity: 0.03; }
+  50%      { opacity: 0.07; }
+}
+
+.flow-glow {
+  animation: flow-glow 8s ease-in-out infinite;
+}

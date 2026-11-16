@@ -1,0 +1,290 @@
+---
+title: "Building Type-Safe APIs with tRPC and Next.js"
+---
+
+## Why We Stopped Writing REST Controllers
+
+Every full-stack TypeScript project we've built eventually runs into the same problem: the API layer becomes a liability. You rename a field in Prisma, update the backend handler, and forget to update the React Query call on the frontend. Nothing breaks at build time. The bug shows up three days later when a QA engineer happens to click the right button.
+
+tRPC eliminates this entire class of errors by sharing types between server and client at compile time — no code generation, no OpenAPI specs to keep in sync, no runtime overhead. After adopting it across six production projects, we consider it table stakes for any Next.js application where the same team owns both frontend and backend.
+
+## Router Architecture
+
+A well-structured tRPC router mirrors your domain, not your database tables. We organize routers by business capability, then compose them into the root app router.
+
+```typescript title="src/server/trpc/routers/billing.ts"
+import { z } from 'zod';
+import { router, protectedProcedure, adminProcedure } from '../init';
+import { TRPCError } from '@trpc/server';
+import { stripe } from '@/lib/stripe';
+
+const billingRouter = router({
+  getSubscription: protectedProcedure.query(async ({ ctx }) => {
+    const sub = await ctx.db.subscription.findUnique({
+      where: { organizationId: ctx.session.orgId },
+      include: { plan: true, invoices: { take: 5, orderBy: { createdAt: 'desc' } } },
+    });
+
+    if (!sub) {
+      throw new TRPCError({
+        code: 'NOT_FOUND',
+        message: 'No active subscription found',
+      });
+    }
+
+    return {
+      plan: sub.plan.name,
+      status: sub.status,
+      currentPeriodEnd: sub.currentPeriodEnd,
+      recentInvoices: sub.invoices.map((inv) => ({
+        id: inv.id,
+        amount: inv.amount,
+        status: inv.status,
+        date: inv.createdAt,
+      })),
+    };
+  }),
+
+  changePlan: protectedProcedure
+    .input(z.object({
+      planId: z.string(),
+      prorationBehavior: z.enum(['create_prorations', 'none']).default('create_prorations'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const currentSub = await ctx.db.subscription.findUniqueOrThrow({
+        where: { organizationId: ctx.session.orgId },
+      });
+
+      const updated = await stripe.subscriptions.update(currentSub.stripeId, {
+        items: [{ id: currentSub.stripeItemId, plan: input.planId }],
+        proration_behavior: input.prorationBehavior,
+      });
+
+      await ctx.db.subscription.update({
+        where: { id: currentSub.id },
+        data: { planId: input.planId, status: updated.status },
+      });
+
+      return { success: true, effectiveDate: updated.current_period_start };
+    }),
+
+  getUsageMetrics: adminProcedure
+    .input(z.object({
+      period: z.enum(['7d', '30d', '90d']).default('30d'),
+    }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.usageRecord.groupBy({
+        by: ['metric'],
+        where: {
+          organizationId: ctx.session.orgId,
+          createdAt: { gte: periodToDate(input.period) },
+        },
+        _sum: { value: true },
+        _count: true,
+      });
+    }),
+});
+
+export default billingRouter;
+```
+
+### Procedure Composition With Middleware
+
+The real power of tRPC is middleware composition. Instead of decorators or wrapper functions, middleware chains are type-safe and composable:
+
+```typescript title="src/server/trpc/init.ts"
+import { initTRPC, TRPCError } from '@trpc/server';
+import superjson from 'superjson';
+import type { Context } from './context';
+
+const t = initTRPC.context<Context>().create({
+  transformer: superjson,
+  errorFormatter({ shape, error }) {
+    return {
+      ...shape,
+      data: {
+        ...shape.data,
+        zodError: error.cause instanceof z.ZodError ? error.cause.flatten() : null,
+      },
+    };
+  },
+});
+
+export const router = t.router;
+export const publicProcedure = t.procedure;
+
+const enforceAuth = t.middleware(async ({ ctx, next }) => {
+  if (!ctx.session?.user) {
+    throw new TRPCError({ code: 'UNAUTHORIZED' });
+  }
+  return next({
+    ctx: { session: ctx.session },
+  });
+});
+
+const enforceAdmin = t.middleware(async ({ ctx, next }) => {
+  if (ctx.session?.user?.role !== 'admin') {
+    throw new TRPCError({ code: 'FORBIDDEN' });
+  }
+  return next({ ctx });
+});
+
+const withRateLimit = t.middleware(async ({ ctx, next, path }) => {
+  const key = `ratelimit:${ctx.session?.user?.id ?? ctx.ip}:${path}`;
+  const current = await ctx.redis.incr(key);
+  if (current === 1) await ctx.redis.expire(key, 60);
+  if (current > 100) {
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded' });
+  }
+  return next();
+});
+
+export const protectedProcedure = publicProcedure.use(enforceAuth).use(withRateLimit);
+export const adminProcedure = protectedProcedure.use(enforceAdmin);
+```
+
+<Callout type="info" title="Middleware Order Matters">
+Middleware executes in the order it's chained. Always put authentication before rate limiting — otherwise unauthenticated users consume your rate limit budget and you can't identify abusers.
+</Callout>
+
+## Error Handling Strategy
+
+We categorize tRPC errors into two buckets: expected errors (validation failures, not found, permissions) and unexpected errors (database timeouts, third-party API failures). The error formatter surfaces Zod validation details to the client while keeping internal errors opaque.
+
+| Error Type | tRPC Code | Client Behavior |
+|-----------|-----------|-----------------|
+| Validation failure | `BAD_REQUEST` | Show field-level errors inline |
+| Not authenticated | `UNAUTHORIZED` | Redirect to login |
+| Not authorized | `FORBIDDEN` | Show permission denied toast |
+| Resource missing | `NOT_FOUND` | Show 404 component |
+| Rate limited | `TOO_MANY_REQUESTS` | Retry with backoff |
+| Server error | `INTERNAL_SERVER_ERROR` | Show generic error, log to Sentry |
+
+On the client, we wrap tRPC's React Query hooks with a global error handler:
+
+```typescript title="src/lib/trpc-client.ts"
+import { httpBatchLink, loggerLink } from '@trpc/client';
+import { createTRPCNext } from '@trpc/next';
+import type { AppRouter } from '@/server/trpc/root';
+import superjson from 'superjson';
+import { toast } from 'sonner';
+
+export const trpc = createTRPCNext<AppRouter>({
+  config() {
+    return {
+      links: [
+        loggerLink({ enabled: () => process.env.NODE_ENV === 'development' }),
+        httpBatchLink({
+          url: '/api/trpc',
+          transformer: superjson,
+        }),
+      ],
+      queryClientConfig: {
+        defaultOptions: {
+          mutations: {
+            onError(error) {
+              if (error.data?.code === 'UNAUTHORIZED') {
+                window.location.href = '/login';
+                return;
+              }
+              toast.error(error.message);
+            },
+          },
+          queries: {
+            retry: (failureCount, error) => {
+              if (['UNAUTHORIZED', 'FORBIDDEN', 'NOT_FOUND'].includes(error.data?.code)) {
+                return false;
+              }
+              return failureCount < 3;
+            },
+            staleTime: 5 * 60 * 1000,
+          },
+        },
+      },
+    };
+  },
+  ssr: false,
+});
+```
+
+## Testing Strategies
+
+### Unit Testing Procedures
+
+We test procedures directly by calling them with a mock context — no HTTP server needed. This is one of tRPC's most underrated advantages:
+
+```typescript title="src/server/trpc/__tests__/billing.test.ts"
+import { createInnerContext } from '../context';
+import { appRouter } from '../root';
+import { mockDeep } from 'jest-mock-extended';
+import type { PrismaClient } from '@prisma/client';
+
+describe('billing.getSubscription', () => {
+  it('returns formatted subscription data', async () => {
+    const prismaMock = mockDeep<PrismaClient>();
+    prismaMock.subscription.findUnique.mockResolvedValue({
+      plan: { name: 'Pro' },
+      status: 'active',
+      currentPeriodEnd: new Date('2025-02-01'),
+      invoices: [{ id: 'inv_1', amount: 4900, status: 'paid', createdAt: new Date() }],
+    });
+
+    const ctx = createInnerContext({
+      db: prismaMock,
+      session: { user: { id: 'user_1' }, orgId: 'org_1' },
+    });
+
+    const caller = appRouter.createCaller(ctx);
+    const result = await caller.billing.getSubscription();
+
+    expect(result.plan).toBe('Pro');
+    expect(result.recentInvoices).toHaveLength(1);
+  });
+
+  it('throws NOT_FOUND when no subscription exists', async () => {
+    const prismaMock = mockDeep<PrismaClient>();
+    prismaMock.subscription.findUnique.mockResolvedValue(null);
+
+    const ctx = createInnerContext({
+      db: prismaMock,
+      session: { user: { id: 'user_1' }, orgId: 'org_1' },
+    });
+
+    const caller = appRouter.createCaller(ctx);
+    await expect(caller.billing.getSubscription()).rejects.toThrow('NOT_FOUND');
+  });
+});
+```
+
+<Callout type="tip" title="Test the Middleware Chain">
+Don't just test procedure logic — test that unauthorized calls throw, that rate limiting kicks in, and that admin routes reject non-admin users. These are the tests that catch real production bugs.
+</Callout>
+
+### Integration Testing With a Real Database
+
+For integration tests, we spin up a test database per test file using Prisma migrations. This catches query bugs that mocks silently ignore — wrong `include` nesting, missing indexes on `orderBy` fields, and constraint violations.
+
+## Performance Considerations
+
+| Optimization | Impact | Complexity |
+|-------------|--------|------------|
+| HTTP batching | Reduces round trips for parallel queries | Low (built-in) |
+| Response caching headers | Reduces server load for read-heavy routes | Low |
+| Query splitting | Prevents a slow query from blocking fast ones | Medium |
+| Streaming (experimental) | Enables progressive UI updates | High |
+
+We enable HTTP batching by default but split critical-path queries (e.g., session validation) into a separate non-batched link. This ensures your auth check doesn't wait behind a slow analytics query.
+
+## When Not to Use tRPC
+
+tRPC is the right choice when the same team owns client and server in a TypeScript monorepo. It's the wrong choice when:
+
+- External consumers need your API (use OpenAPI/REST or GraphQL instead)
+- Your backend isn't TypeScript (obviously)
+- You need protocol-level caching semantics that rely on standard HTTP methods
+
+We've successfully used tRPC alongside REST endpoints in the same application — tRPC for internal app routes, REST for webhooks and public API endpoints. They coexist cleanly in Next.js.
+
+<KeyTakeaway title="Type safety is a team velocity multiplier">
+The real value of tRPC isn't catching type errors — it's the confidence to refactor. When we renamed a database column last month, TypeScript immediately flagged every affected procedure and every client call site. The entire migration, from schema change to deployed fix, took 40 minutes. That same change in an untyped REST codebase would have been a cautious, multi-day affair with manual testing.
+</KeyTakeaway>
