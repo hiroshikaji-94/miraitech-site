@@ -8,9 +8,10 @@ import { SITE } from '@/lib/site'
 
 export function Journey() {
   return (
-    <section className="py-20 md:py-28 relative overflow-hidden">
+    <section className="py-16 md:py-24 relative overflow-hidden">
       <AmbientGlow preset="warm" intensity="subtle" />
-      <Container size="md" className="relative z-10">
+      <Container className="relative z-10">
+        <div className="max-w-3xl">
         <FadeIn>
           <span className="section-index block mb-3">ORIGIN STORY</span>
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight mb-8">
@@ -62,6 +63,7 @@ export function Journey() {
               English.
             </p>
           </FadeIn>
+        </div>
         </div>
       </Container>
     </section>

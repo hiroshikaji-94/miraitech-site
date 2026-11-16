@@ -10,8 +10,6 @@ export function ContactHero() {
   return (
     <section className="relative pt-28 pb-16 md:pt-36 md:pb-24 overflow-hidden">
       <MeridianBackground intensity="subtle" lines={false} parallax={false} />
-      <div className="pointer-events-none absolute top-0 left-0 w-px h-[30vh] bg-gradient-to-b from-accent-warm/15 to-transparent" />
-      <div className="pointer-events-none absolute top-0 left-0 h-px w-[20vw] bg-gradient-to-r from-accent-warm/15 to-transparent" />
 
       <Container size="md" className="relative z-10">
         <motion.div
@@ -50,7 +48,7 @@ export function ContactHero() {
           transition={{ duration: 0.4, delay: 0.25, ease }}
           className="mt-6"
         >
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-emerald-500/20">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06]">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 dark:bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />

@@ -133,7 +133,7 @@ export function Footer() {
             </a>
 
             <div className="mt-5 flex">
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-emerald-500/20">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.06]">
                 <span className="relative flex h-1.5 w-1.5">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 dark:bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />

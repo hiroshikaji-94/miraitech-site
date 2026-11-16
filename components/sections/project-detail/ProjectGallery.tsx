@@ -25,11 +25,8 @@ export function ProjectGallery({ images, title }: ProjectGalleryProps) {
 
   return (
     <>
-      <section className="py-16 md:py-20 border-y border-border/8 relative overflow-hidden">
-        {/* Subtle glow */}
-        <div className="pointer-events-none absolute inset-0 bg-glow-violet opacity-20" />
-
-        <Container className="relative z-10">
+      <section className="py-16 md:py-20 border-y border-border/8 bg-muted relative">
+        <Container>
           <StaggerContainer
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
             stagger={0.1}
@@ -40,8 +37,8 @@ export function ProjectGallery({ images, title }: ProjectGalleryProps) {
                   onClick={() => openLightbox(i)}
                   className={cn(
                     'group relative block w-full aspect-[16/10] rounded-xl overflow-hidden',
-                    'bg-surface-high border border-border/8',
-                    'hover:border-accent-violet/20 transition-all duration-300',
+                    'bg-surface-high border border-border/10 shadow-card',
+                    'hover:shadow-card-hover hover:border-border/15 transition-all duration-300',
                     'cursor-zoom-in',
                   )}
                   aria-label={`View screenshot ${i + 1} of ${images.length}`}

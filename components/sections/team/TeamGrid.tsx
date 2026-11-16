@@ -8,7 +8,7 @@ import { TEAM } from '@/lib/team'
 
 export function TeamGrid() {
   return (
-    <section className="py-20 md:py-28 relative border-t border-border/6 bg-surface/30 overflow-hidden">
+    <section className="py-20 md:py-28 relative border-t border-border/6 bg-muted overflow-hidden">
       <FlowLines accent="mixed" />
 
       <Container className="relative z-10">

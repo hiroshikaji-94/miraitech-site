@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { ALL_EXPERIMENTS } from '@/lib/data'
 import { EXPERIMENT_DETAILS } from '@/lib/experiment-details'
 import { ExperimentDetailClient } from './ExperimentDetailClient'

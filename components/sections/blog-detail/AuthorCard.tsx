@@ -5,14 +5,15 @@ import { SITE } from '@/lib/site'
 
 export function AuthorCard() {
   return (
-    <Container size="md">
+    <Container size="lg">
+        <div className="max-w-3xl mx-auto xl:mx-0">
       <div className={cn(
-        'my-12 rounded-xl border border-border/8 p-6 md:p-8',
-        'bg-surface',
+        'my-12 rounded-2xl border border-border/10 p-6 md:p-8',
+        'bg-surface shadow-card',
       )}>
         <div className="flex items-start gap-5">
           {/* Avatar */}
-          <div className="flex-shrink-0 w-12 h-12 bg-accent-warm flex items-center justify-center text-background font-mono font-bold text-xs">
+          <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-accent-blue to-accent-end flex items-center justify-center text-white font-mono font-bold text-xs">
             MT
           </div>
 
@@ -42,6 +43,7 @@ export function AuthorCard() {
           </div>
         </div>
       </div>
-    </Container>
+      </div>
+      </Container>
   )
 }

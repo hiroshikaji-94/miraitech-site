@@ -1,267 +1,243 @@
 'use client'
 
-import { useRef } from 'react'
-import { motion, useScroll, useTransform, useInView } from 'framer-motion'
-import { ArrowRight, ArrowDown } from 'lucide-react'
+import Image from 'next/image'
+import Link from 'next/link'
+import { motion } from 'framer-motion'
+import {
+  ArrowRight, ClipboardList, Code2, FlaskConical, Activity, Check,
+} from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { Container } from '@/components/ui/Container'
 import { MeridianBackground } from '@/components/ui/MeridianBackground'
 import { ease, easeDramatic } from '@/lib/motion'
 import { ALL_PROJECTS, ALL_EXPERIMENTS } from '@/lib/data'
+import { ALL_MEMBERS, LEAD } from '@/lib/team'
 import { SITE } from '@/lib/site'
-
-/* ─── Animated counter ───────────────────────────────────────── */
-
-function AnimatedStat({ value, label, delay }: { value: string; label: string; delay: number }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const isInView = useInView(ref, { once: true, margin: '-40px' })
-  const num = parseInt(value)
-  const suffix = value.replace(/\d+/, '')
-
-  return (
-    <div ref={ref}>
-      <div className="flex items-baseline">
-        <motion.span
-          className="text-3xl md:text-4xl font-display font-bold tracking-tight text-foreground tabular-nums"
-          initial={{ opacity: 0, y: 10 }}
-          animate={isInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 0.5, delay, ease }}
-        >
-          {isInView ? num : 0}
-        </motion.span>
-        <motion.span
-          className="text-xl md:text-2xl font-display font-bold text-accent-warm ml-0.5"
-          initial={{ opacity: 0 }}
-          animate={isInView ? { opacity: 1 } : {}}
-          transition={{ duration: 0.4, delay: delay + 0.2 }}
-        >
-          {suffix}
-        </motion.span>
-      </div>
-      <motion.p
-        className="text-[11px] font-mono text-foreground-3 mt-1.5 tracking-[0.12em] uppercase"
-        initial={{ opacity: 0 }}
-        animate={isInView ? { opacity: 1 } : {}}
-        transition={{ duration: 0.4, delay: delay + 0.3 }}
-      >
-        {label}
-      </motion.p>
-    </div>
-  )
-}
 
 /* ─── Stats derived from content ─────────────────────────────── */
 
-const PROJECTS_SHIPPED = ALL_PROJECTS.length
-const AI_SYSTEMS_LIVE =
-  ALL_PROJECTS.filter((p) => p.category === 'AI' && p.status === 'live').length +
-  ALL_EXPERIMENTS.filter((e) => e.status === 'live').length
-const YEARS_ENGINEERING = 12 // combined senior experience across the team
+const STATS = [
+  { value: `${ALL_PROJECTS.length}+`, label: 'Projects shipped' },
+  {
+    value: String(
+      ALL_PROJECTS.filter((p) => p.category === 'AI' && p.status === 'live').length +
+      ALL_EXPERIMENTS.filter((e) => e.status === 'live').length,
+    ),
+    label: 'AI systems live',
+  },
+  { value: '12+', label: 'Years of engineering' }, // combined senior experience
+]
+
+/* ─── How an engagement runs ─────────────────────────────────── */
+
+const STEPS = [
+  { icon: ClipboardList, title: 'Scope',    detail: 'Problem, data audit, success metrics', tag: 'Week 1' },
+  { icon: Code2,         title: 'Build',    detail: 'Retrieval, agents, APIs and interface', tag: 'Weeks 2–8' },
+  { icon: FlaskConical,  title: 'Evaluate', detail: 'Eval suites gate every deployment',     tag: 'In CI' },
+  { icon: Activity,      title: 'Operate',  detail: 'Tracing, cost and latency alerts',      tag: 'Ongoing', live: true },
+]
+
+function DeliveryCard() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 28 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.8, delay: 0.35, ease: easeDramatic }}
+      className="relative"
+    >
+      {/* Floating availability chip */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 1.1, ease }}
+        className={cn(
+          'absolute -top-4 right-6 z-10 inline-flex items-center gap-2',
+          'rounded-full border border-emerald-500/20 bg-surface px-3 py-1.5 shadow-card',
+          'text-xs font-medium text-emerald-700 dark:text-emerald-400',
+        )}
+      >
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        </span>
+        {SITE.status}
+      </motion.div>
+
+      <div className="rounded-2xl border border-border/10 bg-surface shadow-float overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 px-5 sm:px-6 pt-6 pb-4">
+          <div>
+            <p className="text-xs font-mono font-semibold uppercase tracking-[0.12em] text-accent-warm">
+              How we deliver
+            </p>
+            <p className="mt-1 font-display text-lg font-semibold text-foreground">
+              From scope to production
+            </p>
+          </div>
+          <span className="shrink-0 rounded-md border border-border/10 bg-surface-high px-2 py-1 font-mono text-[11px] font-medium text-foreground-2">
+            JP / EN
+          </span>
+        </div>
+
+        {/* Steps */}
+        <ol className="relative px-5 sm:px-6 pb-2">
+          {/* Connector line */}
+          <span aria-hidden className="absolute left-[2.35rem] sm:left-[2.6rem] top-5 bottom-8 w-px bg-border/10" />
+          {STEPS.map(({ icon: Icon, title, detail, tag, live }, i) => (
+            <motion.li
+              key={title}
+              initial={{ opacity: 0, x: 12 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.45, delay: 0.6 + i * 0.12, ease }}
+              className="relative flex items-center gap-4 py-3"
+            >
+              <span className={cn(
+                'relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                live
+                  ? 'border-accent-warm/20 bg-accent-warm text-white shadow-sm'
+                  : 'border-border/10 bg-surface text-accent-warm',
+              )}>
+                <Icon size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">{title}</p>
+                <p className="text-sm text-foreground-3 leading-snug sm:truncate">{detail}</p>
+              </div>
+              <span className={cn(
+                'shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+                live
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-surface-high text-foreground-2',
+              )}>
+                {live ? (
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                ) : (
+                  <Check size={12} className="text-foreground-3" />
+                )}
+                {tag}
+              </span>
+            </motion.li>
+          ))}
+        </ol>
+
+        {/* Team footer */}
+        <div className="mt-2 flex items-center justify-between gap-4 border-t border-border/10 bg-muted px-5 sm:px-6 py-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex -space-x-2.5">
+              {ALL_MEMBERS.map((m) => (
+                <span
+                  key={m.slug}
+                  className="relative h-9 w-9 overflow-hidden rounded-full border-2 border-surface bg-surface-high"
+                >
+                  {m.avatar && (
+                    <Image src={m.avatar} alt={m.name} fill sizes="36px" className="object-cover" loading="eager" />
+                  )}
+                </span>
+              ))}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Senior engineers only</p>
+              <p className="text-xs text-foreground-3">Led by {LEAD.name}</p>
+            </div>
+          </div>
+          <Link
+            href="/team"
+            className="hidden sm:inline shrink-0 text-sm font-medium text-accent-warm hover:text-accent-violet transition-colors"
+          >
+            Meet the team
+          </Link>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
 
 /* ─── Hero ───────────────────────────────────────────────────── */
 
 export function Hero() {
-  const sectionRef = useRef<HTMLElement>(null)
-  const { scrollYProgress } = useScroll({
-    target: sectionRef,
-    offset: ['start start', 'end start'],
-  })
-
-  const contentY = useTransform(scrollYProgress, [0, 1], [0, -60])
-
   return (
-    <section
-      ref={sectionRef}
-      className="relative min-h-dvh flex flex-col pt-16 overflow-hidden"
-    >
-      {/* Meridian background — the living coordinate system */}
-      <MeridianBackground intensity="strong" />
+    <section className="relative overflow-hidden pt-28 pb-16 md:pt-36 md:pb-24 lg:min-h-[88vh] lg:flex lg:items-center">
+      <MeridianBackground intensity="strong" parallax={false} />
 
-      {/* Architectural accent lines — animated draw-in */}
-      <motion.div
-        className="pointer-events-none absolute top-0 left-0 w-px bg-gradient-to-b from-accent-warm/40 via-accent-warm/10 to-transparent"
-        initial={{ height: 0 }}
-        animate={{ height: '55vh' }}
-        transition={{ duration: 1.4, delay: 0.3, ease: easeDramatic }}
-      />
-      <motion.div
-        className="pointer-events-none absolute top-0 left-0 h-px bg-gradient-to-r from-accent-warm/40 via-accent-warm/10 to-transparent"
-        initial={{ width: 0 }}
-        animate={{ width: '40vw' }}
-        transition={{ duration: 1.2, delay: 0.5, ease: easeDramatic }}
-      />
-
-      {/* Bottom-right architectural accent */}
-      <motion.div
-        className="pointer-events-none absolute bottom-0 right-0 w-px bg-gradient-to-t from-accent-blue/20 to-transparent"
-        initial={{ height: 0 }}
-        animate={{ height: '25vh' }}
-        transition={{ duration: 1.0, delay: 1.2, ease: easeDramatic }}
-      />
-      <motion.div
-        className="pointer-events-none absolute bottom-0 right-0 h-px bg-gradient-to-l from-accent-blue/20 to-transparent"
-        initial={{ width: 0 }}
-        animate={{ width: '20vw' }}
-        transition={{ duration: 0.8, delay: 1.3, ease: easeDramatic }}
-      />
-
-      {/* Content — parallax on scroll */}
-      <motion.div
-        className="relative z-10 flex-1 flex flex-col"
-        style={{ y: contentY }}
-      >
-        <Container className="flex-1 flex flex-col justify-center py-24 md:py-32">
-          {/* Top info line */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.15, ease }}
-            className="flex items-center gap-6 mb-10 md:mb-14"
-          >
-            <span className="text-[11px] font-mono text-foreground-3 tracking-[0.15em] uppercase">
-              {SITE.tagline}
-            </span>
+      <Container className="relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-14 lg:gap-16 xl:gap-24 items-center">
+          {/* ── Copy ─────────────────────────────────────── */}
+          <div>
             <motion.div
-              className="h-px flex-1 bg-border/8"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 1.0, delay: 0.5, ease: easeDramatic }}
-              style={{ transformOrigin: 'left' }}
-            />
-          </motion.div>
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1, ease }}
+              className="inline-flex items-center gap-2.5 rounded-full border border-border/10 bg-surface/80 py-1 pl-1 pr-3.5 shadow-card backdrop-blur"
+            >
+              <span className="rounded-full bg-accent-warm/10 px-2.5 py-0.5 text-xs font-semibold text-accent-warm">
+                {SITE.name}
+              </span>
+              <span className="text-xs font-medium text-foreground-2">
+                AI-focused software engineering · Tokyo
+              </span>
+            </motion.div>
 
-          {/* Brand name — massive, cinematic reveal */}
-          <div className="overflow-hidden">
             <motion.h1
-              className="font-display text-[clamp(3rem,10vw,7rem)] font-bold tracking-[-0.04em] leading-[0.85] -ml-1 md:-ml-2"
-              initial={{ y: '110%' }}
-              animate={{ y: 0 }}
-              transition={{ duration: 1.0, delay: 0.2, ease: easeDramatic }}
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2, ease: easeDramatic }}
+              className="mt-7 font-display text-[clamp(2.5rem,4.6vw,4rem)] font-bold leading-[1.04] tracking-[-0.03em] text-foreground"
             >
-              <span className="text-foreground">Mirai</span>
-              <motion.span
-                className="text-accent-warm inline-block"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.8, delay: 0.6, ease }}
-              >
-                Tech
-              </motion.span>
+              AI systems that <br className="hidden md:block" />
+              <span className="gradient-text">run in production.</span>
             </motion.h1>
-          </div>
 
-          {/* Tagline — dramatic scale contrast */}
-          <motion.p
-            className="mt-5 md:mt-7 font-display text-xl md:text-2xl lg:text-[1.75rem] font-medium tracking-tight text-foreground-2 max-w-xl leading-[1.25]"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.55, ease }}
-          >
-            A Tokyo engineering team building AI systems
-            that run in production.
-          </motion.p>
-
-          {/* Divider — animated grow */}
-          <motion.div
-            className="mt-8 md:mt-12 flex items-center gap-6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 0.7 }}
-          >
-            <motion.div
-              className="h-px w-16 bg-accent-warm/50"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.8, delay: 0.8, ease: easeDramatic }}
-              style={{ transformOrigin: 'left' }}
-            />
-            <motion.span
-              className="text-[11px] font-mono text-foreground-3 tracking-[0.2em] uppercase"
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.4, delay: 0.9, ease }}
+            <motion.p
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.35, ease }}
+              className="mt-6 max-w-xl text-lg leading-relaxed text-foreground-2 text-pretty"
             >
-              {SITE.location.area} · JST
-            </motion.span>
-            <motion.div
-              className="h-px flex-1 bg-border/6"
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              transition={{ duration: 0.8, delay: 1.0, ease: easeDramatic }}
-              style={{ transformOrigin: 'left' }}
-            />
-          </motion.div>
-
-          {/* Body + CTAs */}
-          <motion.div
-            className="mt-8 md:mt-10 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-8 md:gap-16 items-end"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.8, ease }}
-          >
-            <p className="text-base text-foreground-2 leading-[1.8] max-w-md">
-              We turn hard problems into systems that hold up under real
-              traffic — retrieval pipelines, agent architectures, and the
-              full-stack products and data platforms around them.
-            </p>
+              {SITE.name} is a senior engineering team in Tokyo. We turn hard problems into
+              systems that hold up under real traffic — retrieval pipelines, agent
+              architectures, and the full-stack products and data platforms around them.
+            </motion.p>
 
             <motion.div
-              className="flex gap-3"
-              initial={{ opacity: 0, x: 12 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.95, ease }}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5, ease }}
+              className="mt-9 flex flex-wrap gap-3"
             >
-              <Button href="/projects" size="lg">
-                Our work
-                <ArrowRight size={15} />
+              <Button href="/contact" size="lg">
+                Start a project
+                <ArrowRight size={16} />
               </Button>
-              <Button href="/contact" variant="secondary" size="lg">
-                Get in touch
+              <Button href="/projects" variant="secondary" size="lg">
+                View our work
               </Button>
             </motion.div>
-          </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            className="mt-14 md:mt-20 pt-5 border-t border-border/6"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4, delay: 1.0 }}
-          >
-            <div className="grid grid-cols-3 gap-6 max-w-lg">
-              {[
-                { value: `${PROJECTS_SHIPPED}+`,  label: 'Projects shipped' },
-                { value: `${AI_SYSTEMS_LIVE}+`,   label: 'AI systems live' },
-                { value: `${YEARS_ENGINEERING}+`, label: 'Years of engineering' },
-              ].map(({ value, label }, i) => (
-                <AnimatedStat key={label} value={value} label={label} delay={1.1 + i * 0.12} />
+            {/* Stats */}
+            <motion.dl
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.7 }}
+              className="mt-12 grid max-w-lg grid-cols-3 divide-x divide-border/10 border-t border-border/10 pt-6"
+            >
+              {STATS.map(({ value, label }, i) => (
+                <div key={label} className={cn('flex flex-col-reverse', i > 0 && 'pl-5 sm:pl-6')}>
+                  <dt className="mt-1 text-sm text-foreground-3 leading-snug">{label}</dt>
+                  <dd className="font-display text-3xl font-bold tracking-tight text-foreground tabular-nums">
+                    {value}
+                  </dd>
+                </div>
               ))}
-            </div>
-          </motion.div>
-        </Container>
-      </motion.div>
+            </motion.dl>
+          </div>
 
-      {/* Scroll indicator */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2.0, duration: 0.6 }}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2"
-      >
-        <motion.span
-          className="text-[10px] font-mono text-foreground-3/40 tracking-[0.2em] uppercase"
-          animate={{ opacity: [0.3, 0.6, 0.3] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          Scroll
-        </motion.span>
-        <motion.div
-          animate={{ y: [0, 4, 0] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <ArrowDown size={13} className="text-foreground-3/40" />
-        </motion.div>
-      </motion.div>
+          {/* ── Visual ───────────────────────────────────── */}
+          <div className="lg:pl-4">
+            <DeliveryCard />
+          </div>
+        </div>
+      </Container>
     </section>
   )
 }

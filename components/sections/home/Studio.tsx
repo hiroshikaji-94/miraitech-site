@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import { MapPin, Clock, Globe, Languages, ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Container } from '@/components/ui/Container'
-import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/FadeIn'
-import { AmbientGlow } from '@/components/ui/AmbientGlow'
+import { FadeIn } from '@/components/ui/FadeIn'
 import { SITE } from '@/lib/site'
 
 /* ─── Live Tokyo clock ───────────────────────────────────────── */
@@ -42,21 +41,18 @@ export function Studio() {
   ]
 
   return (
-    <section className="py-20 md:py-28 relative border-t border-border/6 overflow-hidden">
-      <AmbientGlow preset="blue" intensity="whisper" />
-
-      <Container className="relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+    <section className="py-20 md:py-28 relative border-t border-border/8 bg-muted">
+      <Container>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Copy */}
           <FadeIn>
-            <span className="section-index block mb-3">05 — STUDIO</span>
-            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
-              Based in Tokyo,
-              <br />
+            <span className="section-index block mb-3">05 — Studio</span>
+            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+              Based in Tokyo,{' '}
               <span className="gradient-text">working everywhere</span>
             </h2>
-            <p className="mt-5 text-foreground-2 leading-relaxed max-w-md text-pretty">
-              MiraiTech is based in {SITE.location.area}. Most engagements are remote,
+            <p className="mt-5 text-lg text-foreground-2 leading-relaxed max-w-lg text-pretty">
+              {SITE.name} is based in {SITE.location.area}. Most engagements are remote,
               run in Japanese or English, and aligned to the client&apos;s time zone —
               whether that is Tokyo, Singapore, Berlin, or San Francisco.
             </p>
@@ -66,7 +62,7 @@ export function Studio() {
               rel="noopener noreferrer"
               className={cn(
                 'mt-6 inline-flex items-center gap-1.5',
-                'text-sm font-medium text-accent-blue',
+                'text-sm font-medium text-accent-warm',
                 'hover:text-accent-violet transition-colors duration-200',
               )}
             >
@@ -76,26 +72,24 @@ export function Studio() {
           </FadeIn>
 
           {/* Facts grid */}
-          <StaggerContainer className="grid grid-cols-2 gap-px bg-border/8 border border-border/8" stagger={0.06}>
-            {facts.map(({ icon: Icon, label, value, mono }) => (
-              <StaggerItem key={label} className="h-full">
-                <div className="bg-background p-5 md:p-6 h-full">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Icon size={13} className="text-foreground-3" />
-                    <span className="text-[11px] font-mono text-foreground-3 uppercase tracking-[0.12em]">
-                      {label}
-                    </span>
-                  </div>
-                  <p className={cn(
-                    'text-foreground font-medium',
-                    mono ? 'font-mono text-2xl tabular-nums' : 'text-base',
+          <FadeIn delay={0.1}>
+            <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border/10 bg-border/10 shadow-card">
+              {facts.map(({ icon: Icon, label, value, mono }) => (
+                <div key={label} className="bg-surface p-5 md:p-7">
+                  <dt className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.12em] text-foreground-3">
+                    <Icon size={14} className="text-accent-warm" />
+                    {label}
+                  </dt>
+                  <dd className={cn(
+                    'mt-3 text-foreground font-semibold',
+                    mono ? 'font-mono text-3xl tabular-nums tracking-tight' : 'text-base md:text-lg',
                   )}>
                     {value}
-                  </p>
+                  </dd>
                 </div>
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
+              ))}
+            </dl>
+          </FadeIn>
         </div>
       </Container>
     </section>

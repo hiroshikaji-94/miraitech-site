@@ -51,8 +51,8 @@ export function BlogTimeline({ posts }: BlogTimelineProps) {
             {/* Year marker */}
             <div className="flex items-center gap-3 mb-5 lg:pl-6 relative">
               {/* Timeline dot */}
-              <div className="hidden lg:block absolute left-0 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-accent-blue border-2 border-background" />
-              <span className="text-sm font-mono font-bold text-accent-blue">{year}</span>
+              <div className="hidden lg:block absolute left-0 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-accent-warm border-2 border-background" />
+              <span className="text-sm font-mono font-bold text-accent-warm">{year}</span>
               <div className="h-px flex-1 bg-border/8" />
             </div>
 

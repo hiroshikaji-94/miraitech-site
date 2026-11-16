@@ -21,7 +21,7 @@ function NavCard({
       href={`/blog/${post.slug}`}
       className={cn(
         'group flex items-center gap-4 p-5 rounded-xl',
-        'bg-surface border border-border/8',
+        'bg-surface border border-border/10 shadow-card',
         'hover:border-accent-blue/20 hover:shadow-card-hover',
         'transition-all duration-300',
         isPrev ? 'flex-row' : 'flex-row-reverse text-right',
@@ -64,7 +64,8 @@ export function ArticleNav({ prev, next }: ArticleNavProps) {
 
   return (
     <section className="py-10 md:py-14 border-t border-border/8">
-      <Container size="md">
+      <Container size="lg">
+        <div className="max-w-3xl mx-auto xl:mx-0">
         <FadeIn>
           <div className={cn(
             'grid gap-4',
@@ -75,6 +76,7 @@ export function ArticleNav({ prev, next }: ArticleNavProps) {
             {next && <NavCard post={next} direction="next" />}
           </div>
         </FadeIn>
+        </div>
       </Container>
     </section>
   )

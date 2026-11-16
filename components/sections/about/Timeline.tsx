@@ -85,21 +85,21 @@ const timeline: TimelineEntry[] = [
 
 export function Timeline() {
   return (
-    <section className="py-20 md:py-28 relative overflow-hidden">
+    <section className="py-20 md:py-28 relative overflow-hidden bg-muted border-y border-border/8">
       <AmbientGlow preset="center-violet" intensity="subtle" />
 
-      <Container size="lg" className="relative z-10">
-        <FadeIn className="text-center mb-12">
+      <Container className="relative z-10">
+        <FadeIn className="mb-12 max-w-2xl">
           <span className="section-index block mb-3">TIMELINE</span>
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
             The MiraiTech journey
           </h2>
-          <p className="mt-4 text-foreground-2 max-w-lg mx-auto">
+          <p className="mt-4 text-lg text-foreground-2 leading-relaxed">
             Key milestones that shaped the team and how we work with clients.
           </p>
         </FadeIn>
 
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl">
           <StaggerContainer className="relative" stagger={0.08}>
             {/* Vertical line */}
             <div className="absolute left-[19px] top-2 bottom-2 w-px bg-border/10" />
@@ -125,7 +125,7 @@ export function Timeline() {
                     {/* Card */}
                     <div className={cn(
                       'p-5 rounded-xl',
-                      'bg-surface border border-border/8',
+                      'bg-surface border border-border/10 shadow-card',
                       'transition-all duration-300',
                       'hover:border-border/15 hover:shadow-card',
                     )}>

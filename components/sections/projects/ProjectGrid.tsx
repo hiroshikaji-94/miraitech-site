@@ -5,16 +5,20 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Container } from '@/components/ui/Container'
 import { FadeIn } from '@/components/ui/FadeIn'
 import { ProjectCard } from '@/components/cards/ProjectCard'
-import { AmbientGlow } from '@/components/ui/AmbientGlow'
 import { ProjectFilters } from './ProjectFilters'
 import { ALL_PROJECTS, type ProjectFilter } from '@/lib/data'
+
+/** Featured engagements first, then by the curated order. */
+const SORTED_PROJECTS = [...ALL_PROJECTS].sort(
+  (a, b) => Number(b.featured) - Number(a.featured) || a.order - b.order,
+)
 
 export function ProjectGrid() {
   const [activeFilter, setActiveFilter] = useState<ProjectFilter>('All')
 
   const filtered = useMemo(() => {
-    if (activeFilter === 'All') return ALL_PROJECTS
-    return ALL_PROJECTS.filter((p) => p.category === activeFilter)
+    if (activeFilter === 'All') return SORTED_PROJECTS
+    return SORTED_PROJECTS.filter((p) => p.category === activeFilter)
   }, [activeFilter])
 
   // Pre-compute counts for filter badges
@@ -29,18 +33,15 @@ export function ProjectGrid() {
   }, [])
 
   return (
-    <section className="py-16 md:py-20 relative overflow-hidden">
-      <AmbientGlow preset="blue" intensity="whisper" />
-      <Container className="relative z-10">
+    <section className="pb-20 md:pb-28 relative">
+      <Container>
         {/* ── Filter header ───────────────────────────────── */}
         <FadeIn>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-10">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-mono font-medium text-foreground-3 uppercase tracking-wider">
-                All Projects
-              </span>
-              <div className="h-px flex-1 bg-border/10 sm:hidden" />
-            </div>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8 pb-6 border-b border-border/10">
+            <p className="text-sm text-foreground-3" aria-live="polite">
+              Showing <span className="font-semibold text-foreground">{filtered.length}</span>{' '}
+              {activeFilter === 'All' ? 'projects' : `${activeFilter} projects`}
+            </p>
 
             <ProjectFilters
               active={activeFilter}
@@ -51,22 +52,19 @@ export function ProjectGrid() {
         </FadeIn>
 
         {/* ── Project grid ────────────────────────────────── */}
-        <motion.div
-          layout
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
+        <motion.div layout className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8">
           <AnimatePresence mode="popLayout">
             {filtered.map((project, i) => (
               <motion.div
                 key={project.slug}
                 layout
-                initial={{ opacity: 0, scale: 0.95 }}
+                initial={{ opacity: 0, scale: 0.97 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+                exit={{ opacity: 0, scale: 0.97 }}
                 transition={{ duration: 0.3, ease: [0.21, 0.47, 0.32, 0.98] }}
                 className="h-full"
               >
-                <ProjectCard project={project} priority={i < 3} />
+                <ProjectCard project={project} featured priority={i < 2} />
               </motion.div>
             ))}
           </AnimatePresence>

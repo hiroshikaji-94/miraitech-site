@@ -15,6 +15,7 @@ const config: Config = {
       colors: {
         background:      'rgb(var(--color-background) / <alpha-value>)',
         surface:         'rgb(var(--color-surface) / <alpha-value>)',
+        muted:           'rgb(var(--color-muted) / <alpha-value>)',
         'surface-high':  'rgb(var(--color-surface-high) / <alpha-value>)',
         foreground:      'rgb(var(--color-foreground) / <alpha-value>)',
         'foreground-2':  'rgb(var(--color-foreground-2) / <alpha-value>)',
@@ -23,6 +24,7 @@ const config: Config = {
         'accent-blue':   'rgb(var(--color-accent-blue) / <alpha-value>)',
         'accent-violet': 'rgb(var(--color-accent-violet) / <alpha-value>)',
         'accent-warm':   'rgb(var(--color-accent-warm) / <alpha-value>)',
+        'accent-end':    'rgb(var(--color-accent-end) / <alpha-value>)',
       },
 
       // ─── Typography ────────────────────────────────────────────
@@ -52,6 +54,7 @@ const config: Config = {
         'glow-accent': '0 0 60px rgb(59 130 246 / 0.06), 0 0 100px rgb(163 106 254 / 0.04)',
         card:          'var(--shadow-card)',
         'card-hover':  'var(--shadow-card-hover)',
+        float:         'var(--shadow-float)',
       },
 
       // ─── Animations ────────────────────────────────────────────

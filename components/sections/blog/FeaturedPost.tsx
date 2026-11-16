@@ -9,7 +9,6 @@ import {
 import { cn } from '@/lib/utils'
 import { Container } from '@/components/ui/Container'
 import { FadeIn } from '@/components/ui/FadeIn'
-import { AmbientGlow } from '@/components/ui/AmbientGlow'
 import { formatDate } from '@/lib/utils'
 import type { BlogPostData, ContentBadge } from '@/lib/data'
 
@@ -30,14 +29,13 @@ interface FeaturedPostProps {
 export function FeaturedPost({ post }: FeaturedPostProps) {
   return (
     <section className="pb-12 md:pb-16 relative overflow-hidden">
-      <AmbientGlow preset="blue" intensity="subtle" />
-      <Container className="relative z-10">
+      <Container>
         <FadeIn>
           {/* Section label */}
           <div className="flex items-center gap-2 mb-6">
-            <Sparkles size={14} className="text-accent-blue" />
-            <span className="text-sm font-semibold text-foreground-2 uppercase tracking-wider">
-              Featured Article
+            <Sparkles size={14} className="text-accent-warm" />
+            <span className="section-index">
+              Featured article
             </span>
             <div className="h-px flex-1 bg-border/10" />
           </div>
@@ -48,16 +46,16 @@ export function FeaturedPost({ post }: FeaturedPostProps) {
             href={`/blog/${post.slug}`}
             className={cn(
               'group block rounded-2xl overflow-hidden',
-              'bg-surface border border-border/8',
-              'transition-all duration-300 ease-out',
-              'hover:border-accent-blue/20 hover:shadow-glow-accent',
+              'bg-surface border border-border/10 shadow-card',
+              'transition-[box-shadow,border-color] duration-300 ease-out',
+              'hover:border-border/15 hover:shadow-card-hover',
             )}
           >
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr]">
               {/* ── Left: Decorative gradient + content preview ── */}
               <div className="relative aspect-[16/10] lg:aspect-auto overflow-hidden bg-surface-high">
                 {/* Ambient gradient */}
-                <div className="absolute inset-0 bg-gradient-to-br from-accent-blue/10 via-accent-violet/5 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-br from-accent-blue/[0.08] via-accent-warm/[0.06] to-accent-end/[0.08]" />
 
                 {/* Decorative grid */}
                 <div
@@ -81,7 +79,7 @@ export function FeaturedPost({ post }: FeaturedPostProps) {
                           key={badge}
                           className={cn(
                             'flex items-center gap-2 px-4 py-2.5 rounded-xl',
-                            'bg-background/50 backdrop-blur-sm border border-border/15',
+                            'bg-surface/90 backdrop-blur-sm border border-border/10 shadow-card',
                             'text-foreground-2',
                           )}
                         >
@@ -93,24 +91,21 @@ export function FeaturedPost({ post }: FeaturedPostProps) {
                   </div>
                 </div>
 
-                {/* Glow orb */}
-                <div className="absolute top-1/3 left-1/3 w-40 h-40 rounded-full bg-accent-blue/8 blur-3xl group-hover:bg-accent-blue/15 transition-colors duration-500" />
               </div>
 
               {/* ── Right: Content ─────────────────────────── */}
               <div className="p-6 md:p-8 lg:p-10 flex flex-col justify-center">
                 {/* Meta row */}
-                <div className="flex items-center gap-4 mb-4">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-blue">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-xs text-foreground-3">
+                  <span className="font-semibold text-accent-warm">
                     {post.category}
                   </span>
-                  <span className="w-1 h-1 rounded-full bg-foreground-3" />
-                  <span className="text-[11px] font-mono text-foreground-3 flex items-center gap-1">
-                    <Calendar size={11} />
-                    {formatDate(post.publishedAt, { month: 'long', day: 'numeric', year: 'numeric' })}
-                  </span>
-                  <span className="text-[11px] font-mono text-foreground-3 flex items-center gap-1">
-                    <Clock size={11} />
+                  <time dateTime={post.publishedAt} className="inline-flex items-center gap-1 whitespace-nowrap">
+                    <Calendar size={12} />
+                    {formatDate(post.publishedAt)}
+                  </time>
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                    <Clock size={12} />
                     {post.readingTime} min read
                   </span>
                 </div>
@@ -118,7 +113,7 @@ export function FeaturedPost({ post }: FeaturedPostProps) {
                 {/* Title */}
                 <h2 className={cn(
                   'font-display text-2xl md:text-3xl font-bold tracking-tight leading-snug',
-                  'text-foreground group-hover:text-accent-blue',
+                  'text-foreground group-hover:text-accent-warm',
                   'transition-colors duration-200',
                 )}>
                   {post.title}
@@ -145,7 +140,7 @@ export function FeaturedPost({ post }: FeaturedPostProps) {
                 <div className="mt-6">
                   <span className={cn(
                     'inline-flex items-center gap-2 text-sm font-medium',
-                    'text-accent-blue group-hover:gap-3 transition-all duration-200',
+                    'text-accent-warm group-hover:gap-3 transition-all duration-200',
                   )}>
                     Read Full Article
                     <ArrowRight size={15} />

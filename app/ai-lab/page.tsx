@@ -11,12 +11,6 @@ export default function AILabPage() {
     <>
       <LabHeader />
 
-      {/* Divider with gradient line */}
-      <div className="relative">
-        <div className="w-full border-t border-border/8" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-px bg-gradient-to-r from-transparent via-accent-violet/30 to-transparent" />
-      </div>
-
       <ExperimentGrid />
     </>
   )

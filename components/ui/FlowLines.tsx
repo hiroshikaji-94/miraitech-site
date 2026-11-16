@@ -34,7 +34,7 @@ export function FlowLines({
 
   return (
     <div
-      className={cn('pointer-events-none absolute inset-0 overflow-hidden', className)}
+      className={cn('flow-lines pointer-events-none absolute inset-0 overflow-hidden', className)}
       style={{ opacity: 'var(--bg-glow-multiplier, 1)' } as React.CSSProperties}
     >
       <svg

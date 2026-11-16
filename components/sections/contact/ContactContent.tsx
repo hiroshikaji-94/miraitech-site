@@ -61,7 +61,7 @@ export function ContactContent() {
                     rel={href.startsWith('http') ? 'noopener noreferrer' : undefined}
                     className={cn(
                       'group flex items-start gap-4 p-4 rounded-xl',
-                      'bg-surface border border-border/8',
+                      'bg-surface border border-border/10 shadow-card',
                       'hover:border-accent-blue/15 hover:shadow-card-hover',
                       'transition-all duration-300',
                     )}
@@ -94,7 +94,7 @@ export function ContactContent() {
                 <StaggerItem key={label}>
                   <div className={cn(
                     'flex items-center gap-3 p-4 rounded-xl',
-                    'bg-surface border border-border/8',
+                    'bg-surface border border-border/10 shadow-card',
                   )}>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-surface-high border border-border/10 flex-shrink-0">
                       <Icon size={16} className="text-foreground-3" />
@@ -114,10 +114,10 @@ export function ContactContent() {
           </div>
 
           {/* ── Right column: email panel ─────────────────── */}
-          <FadeIn delay={0.1}>
+          <FadeIn delay={0.1} className="order-first lg:order-none">
             <div className={cn(
               'p-6 md:p-8 rounded-xl h-full',
-              'bg-surface border border-border/8',
+              'bg-surface border border-border/10 shadow-card',
             )}>
               <div className="flex items-center gap-2 mb-4">
                 <Mail size={16} className="text-accent-blue" />

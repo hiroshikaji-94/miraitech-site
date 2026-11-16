@@ -6,13 +6,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** Format a date string to a readable format. */
+/**
+ * Format an ISO date string ("2026-02-20") to a readable format.
+ *
+ * Date-only ISO strings parse as UTC midnight, so formatting must also use
+ * UTC. Otherwise visitors west of UTC see the previous day, and the server
+ * (UTC) and browser render different text, causing a hydration mismatch.
+ */
 export function formatDate(date: string, options?: Intl.DateTimeFormatOptions): string {
   return new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     ...options,
+    timeZone: 'UTC',
   })
 }
 

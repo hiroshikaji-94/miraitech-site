@@ -27,7 +27,7 @@ function NavCard({
       href={`/projects/${project.slug}`}
       className={cn(
         'group flex items-center gap-4 p-4 rounded-xl',
-        'bg-surface border border-border/8',
+        'bg-surface border border-border/10 shadow-card',
         'hover:border-accent-blue/20 hover:shadow-card-hover',
         'transition-all duration-300',
         isPrev ? 'flex-row' : 'flex-row-reverse text-right',

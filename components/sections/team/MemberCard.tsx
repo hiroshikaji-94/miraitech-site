@@ -18,9 +18,9 @@ export function MemberCard({ member, featured = false, className }: MemberCardPr
   return (
     <article
       className={cn(
-        'h-full rounded-xl bg-surface border border-border/8',
+        'h-full rounded-2xl bg-surface border border-border/10 shadow-card',
         'transition-all duration-300',
-        'hover:border-border/15 hover:shadow-card',
+        'hover:border-border/15 hover:shadow-card-hover',
         featured ? 'p-6 md:p-10' : 'p-6',
         className,
       )}
@@ -32,7 +32,7 @@ export function MemberCard({ member, featured = false, className }: MemberCardPr
         {/* Avatar — photo when available, monogram fallback */}
         <div className={cn(
           'relative flex-shrink-0 flex items-center justify-center overflow-hidden',
-          'border border-border/8 bg-surface-high',
+          'rounded-2xl border border-border/10 bg-surface-high',
           featured ? 'w-28 h-28 md:w-40 md:h-40' : 'w-20 h-20',
         )}>
           {avatar ? (
@@ -42,7 +42,7 @@ export function MemberCard({ member, featured = false, className }: MemberCardPr
               fill
               sizes={featured ? '160px' : '80px'}
               className="object-cover"
-              priority={featured}
+              loading="eager"
             />
           ) : (
             <span className={cn(
@@ -62,7 +62,7 @@ export function MemberCard({ member, featured = false, className }: MemberCardPr
             {name}
           </h3>
           <p className={cn(
-            'font-mono text-accent-warm uppercase tracking-wider mt-1',
+            'font-mono font-semibold text-accent-warm uppercase tracking-wider mt-1',
             featured ? 'text-xs' : 'text-[11px]',
           )}>
             {role}
@@ -87,9 +87,8 @@ export function MemberCard({ member, featured = false, className }: MemberCardPr
               <span
                 key={skill}
                 className={cn(
-                  'text-[11px] font-mono px-2 py-0.5',
-                  'border border-border/8 text-foreground-3',
-                  'transition-colors duration-200 hover:text-foreground hover:border-border/15',
+                  'text-xs px-2 py-0.5 rounded-md',
+                  'bg-surface-high text-foreground-2',
                 )}
               >
                 {skill}

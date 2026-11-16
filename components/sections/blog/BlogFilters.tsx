@@ -50,14 +50,14 @@ export function BlogFilters({
                   'relative px-3 py-1.5 rounded-lg text-sm font-medium text-left',
                   'transition-colors duration-200',
                   isActive
-                    ? 'text-accent-blue'
+                    ? 'text-accent-warm'
                     : 'text-foreground-3 hover:text-foreground-2',
                 )}
               >
                 {isActive && (
                   <motion.div
                     layoutId="blog-category"
-                    className="absolute inset-0 rounded-lg bg-accent-blue/10 border border-accent-blue/15"
+                    className="absolute inset-0 rounded-lg bg-accent-warm/10 border border-accent-warm/15"
                     transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
                   />
                 )}
@@ -65,7 +65,7 @@ export function BlogFilters({
                   {cat}
                   <span className={cn(
                     'text-[11px] font-mono',
-                    isActive ? 'text-accent-blue/70' : 'text-foreground-3/50',
+                    isActive ? 'text-accent-warm/70' : 'text-foreground-3/50',
                   )}>
                     {categoryCounts[cat] ?? 0}
                   </span>
@@ -94,7 +94,7 @@ export function BlogFilters({
                     'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium',
                     'border transition-all duration-200',
                     isActive
-                      ? 'bg-accent-blue/10 border-accent-blue/20 text-accent-blue'
+                      ? 'bg-accent-warm/10 border-accent-warm/20 text-accent-warm'
                       : 'bg-surface border-border/8 text-foreground-3 hover:text-foreground-2 hover:border-border/15',
                   )}
                 >

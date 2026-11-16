@@ -12,29 +12,32 @@
 :root {
   color-scheme: light;
 
-  --color-background:  255 255 255;   /* pure white */
-  --color-surface:     248 250 252;   /* slate-50 — cards, panels */
-  --color-surface-high:241 245 249;   /* slate-100 — elevated / hover */
+  --color-background:  255 255 255;   /* page */
+  --color-surface:     255 255 255;   /* cards & panels — defined by border + shadow */
+  --color-muted:       248 250 252;   /* slate-50 — tinted section bands */
+  --color-surface-high:241 245 249;   /* slate-100 — chips, hover fills */
   --color-foreground:   15  23  42;   /* slate-900 — 17:1 on white */
   --color-foreground-2: 51  65  85;   /* slate-700 — 9.6:1 */
   --color-foreground-3:100 116 139;   /* slate-500 — 4.6:1, labels & meta */
   --color-border:       15  23  42;   /* slate tint, used at low alpha */
-  --color-accent-blue:  37  99 235;   /* blue-600 */
-  --color-accent-violet:109  40 217;  /* violet-700 — hover state */
-  --color-accent-warm: 124  58 237;   /* violet-600 — primary actions */
+  --color-accent-blue:  37  99 235;   /* blue-600 — links, info */
+  --color-accent-violet: 67  56 202;  /* indigo-700 — primary hover */
+  --color-accent-warm:  79  70 229;   /* indigo-600 — primary actions */
+  --color-accent-end:  124  58 237;   /* violet-600 — end of brand gradient */
 
-  /* Glow colours — kept deep so they read as a soft tint on white */
-  --color-glow-warm:   124  58 237;
+  /* Glow colours (dark-mode atmosphere; switched off in light) */
+  --color-glow-warm:    79  70 229;
   --color-glow-blue:    37  99 235;
-  --color-glow-violet: 109  40 217;
+  --color-glow-violet: 124  58 237;
 
-  /* Background animation intensity — soft on light, rich on dark */
-  --bg-glow-multiplier: 0.45;
+  /* Decorative orbs and flow lines are off in light mode — clean white canvas */
+  --bg-glow-multiplier: 0;
   --bg-blur-boost: 20px;
 
   /* Elevation */
-  --shadow-card:       0 1px 2px rgb(15 23 42 / 0.04), 0 4px 16px rgb(15 23 42 / 0.06);
-  --shadow-card-hover: 0 1px 2px rgb(15 23 42 / 0.05), 0 10px 32px rgb(15 23 42 / 0.10);
+  --shadow-card:       0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.03);
+  --shadow-card-hover: 0 1px 2px rgb(15 23 42 / 0.04), 0 12px 32px -6px rgb(15 23 42 / 0.14);
+  --shadow-float:      0 1px 2px rgb(15 23 42 / 0.05), 0 24px 48px -12px rgb(15 23 42 / 0.18);
 }
 
 .dark {
@@ -42,6 +45,7 @@
 
   --color-background:    4   4  12;   /* deep space — richer than flat black */
   --color-surface:      10  10  22;   /* dark surface with depth */
+  --color-muted:         8   8  18;   /* section bands */
   --color-surface-high: 18  18  34;   /* elevated — slight indigo */
   --color-foreground:  235 232 225;   /* warm off-white #EBE8E1 */
   --color-foreground-2:185 182 175;   /* muted — 10:1 on bg */
@@ -50,6 +54,7 @@
   --color-accent-blue:  59 130 246;   /* structural blue */
   --color-accent-violet:139  92 246;  /* reserved, minimal use */
   --color-accent-warm: 163 106 254;   /* logo violet #A36AFE */
+  --color-accent-end:  163 106 254;
 
   --color-glow-warm:   163 106 254;
   --color-glow-blue:    59 130 246;
@@ -60,6 +65,7 @@
 
   --shadow-card:       0 1px 0 0 rgb(255 255 255 / 0.03), 0 2px 12px rgb(0 0 0 / 0.2);
   --shadow-card-hover: 0 1px 0 0 rgb(255 255 255 / 0.05), 0 4px 24px rgb(0 0 0 / 0.3);
+  --shadow-float:      0 1px 0 0 rgb(255 255 255 / 0.04), 0 24px 48px -12px rgb(0 0 0 / 0.5);
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -77,11 +83,14 @@
   }
 
   html {
+    /* Non-static so framer-motion can measure scroll offsets of section targets */
+    position: relative;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     max-width: 100vw;
     overflow-x: hidden;
+    scroll-padding-top: 5rem; /* anchor links land below the fixed header */
   }
 
   body {
@@ -101,18 +110,47 @@
     color: rgb(var(--color-foreground));
   }
 
-  ::-webkit-scrollbar       { width: 4px; height: 4px; }
+  /* Thin-looking but easy-to-grab scrollbar */
+  ::-webkit-scrollbar       { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: rgb(var(--color-foreground-3) / 0.3);
-    border-radius: 0;
+    background: rgb(var(--color-foreground-3) / 0.35);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 9999px;
   }
 
   :focus-visible {
-    outline: 1px solid rgb(var(--color-accent-warm) / 0.8);
+    outline: 2px solid rgb(var(--color-accent-warm) / 0.7);
     outline-offset: 2px;
-    border-radius: 0;
   }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Light mode: no atmospheric orbs, flow lines or diagonal sweeps.
+   They read as grey smudges on white. Dark mode keeps them.
+───────────────────────────────────────────────────────────────── */
+
+html:not(.dark) .ambient-orb,
+html:not(.dark) .meridian-orb-warm,
+html:not(.dark) .meridian-orb-blue,
+html:not(.dark) .meridian-orb-violet,
+html:not(.dark) .meridian-diagonal,
+html:not(.dark) .flow-lines {
+  display: none;
+}
+
+/* Grid lines fade out towards the edges instead of tiling the whole hero */
+.meridian-lines {
+  -webkit-mask-image: radial-gradient(ellipse 75% 65% at 50% 35%, #000 20%, transparent 75%);
+          mask-image: radial-gradient(ellipse 75% 65% at 50% 35%, #000 20%, transparent 75%);
+}
+
+/* Soft brand wash behind page heroes (light mode only) */
+html:not(.dark) .meridian-vignette {
+  background-image:
+    radial-gradient(ellipse 55% 60% at 85% 0%, rgb(var(--color-accent-warm) / 0.07), transparent 70%),
+    radial-gradient(ellipse 45% 50% at 0% 0%, rgb(var(--color-accent-blue) / 0.05), transparent 70%);
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -139,12 +177,13 @@
 ───────────────────────────────────────────────────────────────── */
 
 @layer utilities {
-  /* Gradient text — blue → violet */
+  /* Gradient text — brand blue → violet (matches the logo mark) */
   .gradient-text {
     background: linear-gradient(
-      135deg,
+      120deg,
       rgb(var(--color-accent-blue)),
-      rgb(var(--color-accent-warm))
+      rgb(var(--color-accent-warm)) 55%,
+      rgb(var(--color-accent-end))
     );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -250,13 +289,28 @@
     );
   }
 
-  /* Section index — the "01" markers */
+  /* Section eyebrow — the "02 — WORK" markers above headings */
   .section-index {
     font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
-    font-size: 0.6875rem;
-    font-weight: 500;
-    letter-spacing: 0.1em;
-    color: rgb(var(--color-foreground-3));
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgb(var(--color-accent-warm));
+  }
+
+  /* Card — white panel with hairline border and soft resting shadow */
+  .card {
+    background-color: rgb(var(--color-surface));
+    border: 1px solid rgb(var(--color-border) / 0.09);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-card);
+  }
+
+  /* Subtle dotted texture for tinted bands */
+  .bg-dot-grid {
+    background-image: radial-gradient(rgb(var(--color-border) / 0.09) 1px, transparent 1px);
+    background-size: 22px 22px;
   }
 
   .text-balance { text-wrap: balance; }
@@ -530,4 +584,14 @@
 
 .flow-glow {
   animation: flow-glow 8s ease-in-out infinite;
+}
+
+/* Heading anchors (rehype-autolink-headings, behavior: wrap) should read as
+   headings, not as blue underlined links. */
+.article-prose :is(h2, h3, h4) > a {
+  color: inherit;
+  text-decoration: none;
+}
+.article-prose :is(h2, h3, h4) > a:hover {
+  color: rgb(var(--color-accent-warm));
 }

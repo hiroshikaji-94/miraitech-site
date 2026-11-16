@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Menu } from 'lucide-react'
+import { ArrowRight, Menu } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ThemeToggle } from './ThemeToggle'
 import { MobileMenu } from './MobileMenu'
@@ -41,8 +41,8 @@ export function Header() {
           'fixed top-0 left-0 right-0 z-50 h-16',
           'transition-all duration-500 ease-in-out',
           scrolled
-            ? 'bg-background/80 backdrop-blur-2xl border-b border-border/8 shadow-[0_1px_8px_rgb(0_0_0/0.08)]'
-            : 'bg-background/40 backdrop-blur-md',
+            ? 'bg-background/85 backdrop-blur-xl border-b border-border/10 shadow-[0_1px_12px_rgb(15_23_42/0.06)]'
+            : 'bg-background/60 backdrop-blur-md border-b border-transparent',
         )}
       >
         <Container className="h-full flex items-center justify-between gap-6">
@@ -95,6 +95,7 @@ export function Header() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
                     'relative px-3 py-2 rounded-lg text-sm font-medium',
                     'transition-colors duration-200',
@@ -132,14 +133,16 @@ export function Header() {
             <Link
               href="/contact"
               className={cn(
-                'hidden md:inline-flex items-center gap-2',
-                'px-4 py-2 text-sm font-medium',
+                'hidden md:inline-flex items-center gap-1.5',
+                'h-9 px-4 rounded-lg text-sm font-medium',
                 'bg-accent-warm text-white',
+                'shadow-[0_1px_2px_rgb(15_23_42/0.12),inset_0_1px_0_rgb(255_255_255/0.12)]',
                 'hover:bg-accent-violet',
                 'transition-colors duration-200',
               )}
             >
               Work With Us
+              <ArrowRight size={14} aria-hidden />
             </Link>
 
             {/* Mobile hamburger */}

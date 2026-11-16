@@ -19,8 +19,8 @@ interface ProjectHeroProps {
 
 export function ProjectHero({ project, details }: ProjectHeroProps) {
   const statusColor = {
-    live:     'text-emerald-700 dark:text-emerald-400 bg-emerald-500 dark:bg-emerald-400/10',
-    wip:      'text-amber-700 dark:text-amber-400 bg-amber-500 dark:bg-amber-400/10',
+    live:     'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10',
+    wip:      'text-amber-700 dark:text-amber-400 bg-amber-500/10',
     archived: 'text-foreground-3 bg-foreground-3/10',
   }[project.status]
 
@@ -118,7 +118,7 @@ export function ProjectHero({ project, details }: ProjectHeroProps) {
           className="mt-10 md:mt-14"
         >
           <div className={cn(
-            'relative w-full aspect-[16/9] rounded-xl overflow-hidden',
+            'relative w-full aspect-[16/9] rounded-2xl overflow-hidden',
             'border border-border/10',
             'bg-surface-high',
             'shadow-card-hover',
@@ -127,7 +127,8 @@ export function ProjectHero({ project, details }: ProjectHeroProps) {
               src={project.coverImage}
               alt={project.title}
               fill
-              priority
+              loading="eager"
+              fetchPriority="high"
               className="object-cover object-top"
               sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1200px"
               quality={90}

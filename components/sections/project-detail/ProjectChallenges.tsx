@@ -37,7 +37,7 @@ export function ProjectChallenges({ challenges }: ProjectChallengesProps) {
             <StaggerItem key={i}>
               <div className={cn(
                 'rounded-xl overflow-hidden',
-                'bg-surface border border-border/8',
+                'bg-surface border border-border/10 shadow-card',
                 'hover:border-border/15 transition-colors duration-200',
               )}>
                 {/* Header */}

@@ -1,115 +1,102 @@
 'use client'
 
 import Link from 'next/link'
-import { ArrowUpRight, Clock } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, BookOpen, Clock, FlaskConical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Container } from '@/components/ui/Container'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/FadeIn'
-import { AmbientGlow } from '@/components/ui/AmbientGlow'
-import { FlowLines } from '@/components/ui/FlowLines'
 import { LATEST_POSTS, LATEST_EXPERIMENTS } from '@/lib/data'
 import { formatDate } from '@/lib/utils'
 
-/* ─── Blog Card ──────────────────────────────────────────────── */
+/* ─── Row: blog post ─────────────────────────────────────────── */
 
-function BlogPreviewCard({
-  slug,
-  title,
-  summary,
-  category,
-  publishedAt,
-  readingTime,
-}: (typeof LATEST_POSTS)[number]) {
+function PostRow({ slug, title, summary, category, publishedAt, readingTime }: (typeof LATEST_POSTS)[number]) {
   return (
     <Link
       href={`/blog/${slug}`}
-      className={cn(
-        'group block py-5 border-b border-border/6',
-        'transition-colors duration-200',
-        'hover:bg-surface/30',
-      )}
+      className="group block rounded-xl p-4 -mx-4 transition-colors duration-200 hover:bg-surface-high/60"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3 mb-1.5">
-            <span className="text-[11px] font-mono text-accent-warm uppercase tracking-wider">
-              {category}
-            </span>
-            <span className="text-[11px] font-mono text-foreground-3">
-              {formatDate(publishedAt)}
-            </span>
-          </div>
-          <h3 className={cn(
-            'font-display font-semibold text-base leading-snug',
-            'text-foreground group-hover:text-accent-warm transition-colors duration-200',
-          )}>
-            {title}
-          </h3>
-          <p className="text-sm text-foreground-2 leading-relaxed line-clamp-1 mt-1">
-            {summary}
-          </p>
-        </div>
-        <div className="flex items-center gap-1 text-[11px] font-mono text-foreground-3 flex-shrink-0 mt-1">
-          <Clock size={10} />
-          {readingTime}m
-        </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-foreground-3">
+        <span className="font-semibold text-accent-warm">{category}</span>
+        <span aria-hidden>·</span>
+        <time dateTime={publishedAt}>{formatDate(publishedAt, { month: 'short' })}</time>
+        <span aria-hidden>·</span>
+        <span className="inline-flex items-center gap-1">
+          <Clock size={11} />
+          {readingTime} min read
+        </span>
       </div>
+      <h3 className="mt-2 font-display text-base md:text-lg font-semibold leading-snug text-foreground group-hover:text-accent-warm transition-colors">
+        {title}
+      </h3>
+      <p className="mt-1.5 text-sm text-foreground-2 leading-relaxed line-clamp-2">{summary}</p>
     </Link>
   )
 }
 
-/* ─── Experiment Card ────────────────────────────────────────── */
+/* ─── Row: experiment ────────────────────────────────────────── */
 
-function ExperimentPreviewCard({
-  slug,
-  title,
-  summary,
-  status,
-  stack,
-}: (typeof LATEST_EXPERIMENTS)[number]) {
+function ExperimentRow({ slug, title, summary, status, stack }: (typeof LATEST_EXPERIMENTS)[number]) {
+  const live = status === 'live'
   return (
     <Link
       href={`/ai-lab/${slug}`}
-      className={cn(
-        'group block py-5 border-b border-border/6',
-        'transition-colors duration-200',
-        'hover:bg-surface/30',
-      )}
+      className="group block rounded-xl p-4 -mx-4 transition-colors duration-200 hover:bg-surface-high/60"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3 mb-1.5">
-            <span className="text-[11px] font-mono text-accent-blue uppercase tracking-wider">
-              Experiment
-            </span>
-            <span className={cn(
-              'text-[11px] font-mono px-1.5 py-0.5',
-              status === 'live'
-                ? 'text-emerald-700 dark:text-emerald-400'
-                : 'text-amber-700 dark:text-amber-400',
-            )}>
-              {status}
-            </span>
-          </div>
-          <h3 className={cn(
-            'font-display font-semibold text-base leading-snug',
-            'text-foreground group-hover:text-accent-blue transition-colors duration-200',
-          )}>
-            {title}
-          </h3>
-          <p className="text-sm text-foreground-2 leading-relaxed line-clamp-1 mt-1">
-            {summary}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1 flex-shrink-0 mt-1">
-          {stack.slice(0, 2).map((tech) => (
-            <span key={tech} className="text-[11px] font-mono text-foreground-3 px-1.5 py-0.5 border border-border/8">
-              {tech}
-            </span>
-          ))}
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={cn(
+          'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+          live
+            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+            : 'bg-violet-500/10 text-violet-700 dark:text-violet-400',
+        )}>
+          <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-emerald-500' : 'bg-violet-500')} />
+          {live ? 'Live' : 'Research'}
+        </span>
+        {stack.slice(0, 3).map((tech) => (
+          <span key={tech} className="rounded-md bg-surface-high px-1.5 py-0.5 text-[11px] text-foreground-3">
+            {tech}
+          </span>
+        ))}
       </div>
+      <h3 className="mt-2 font-display text-base md:text-lg font-semibold leading-snug text-foreground group-hover:text-accent-warm transition-colors">
+        {title}
+      </h3>
+      <p className="mt-1.5 text-sm text-foreground-2 leading-relaxed line-clamp-2">{summary}</p>
     </Link>
+  )
+}
+
+/* ─── Column card ────────────────────────────────────────────── */
+
+function Column({
+  icon: Icon, title, href, linkLabel, children,
+}: {
+  icon: React.ElementType
+  title: string
+  href: string
+  linkLabel: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="card h-full p-6 md:p-8 flex flex-col">
+      <div className="flex items-center justify-between gap-4 pb-4 mb-2 border-b border-border/10">
+        <div className="flex items-center gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-warm/10 text-accent-warm">
+            <Icon size={17} />
+          </span>
+          <h3 className="font-display text-lg font-semibold text-foreground">{title}</h3>
+        </div>
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1 text-sm font-medium text-foreground-2 hover:text-accent-warm transition-colors"
+        >
+          {linkLabel}
+          <ArrowUpRight size={14} />
+        </Link>
+      </div>
+      <div className="divide-y divide-border/8">{children}</div>
+    </div>
   )
 }
 
@@ -117,70 +104,49 @@ function ExperimentPreviewCard({
 
 export function LatestContent() {
   return (
-    <section className="py-20 md:py-28 relative overflow-hidden">
-      {/* Dual glow — warm left (Journal), blue right (Lab) */}
-      <AmbientGlow preset="warm-blue" intensity="subtle" />
-      {/* Subtle flow lines — very low opacity, adds depth */}
-      <FlowLines accent="mixed" />
-
-      <Container className="relative z-10">
+    <section className="py-20 md:py-28 relative">
+      <Container>
         <FadeIn>
-          <div className="mb-14">
-            <span className="section-index block mb-3">04 — SIGNALS</span>
-            <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
-              Writing & Experiments
-            </h2>
-            <p className="mt-3 text-foreground-2 max-w-lg">
-              Insights from our engineering practice and experiments from the lab.
-            </p>
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between mb-12">
+            <div className="max-w-2xl">
+              <span className="section-index block mb-3">04 — Signals</span>
+              <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                Writing &amp; experiments
+              </h2>
+              <p className="mt-4 text-lg text-foreground-2 leading-relaxed">
+                Notes from our engineering practice, and research from the lab that feeds back into client work.
+              </p>
+            </div>
+            <Link
+              href="/blog"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-accent-warm hover:text-accent-violet transition-colors self-start sm:self-auto"
+            >
+              Read the journal
+              <ArrowRight size={15} />
+            </Link>
           </div>
         </FadeIn>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 md:gap-14">
-          {/* Blog column */}
-          <StaggerContainer stagger={0.06} delay={0.1}>
-            <div>
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-accent-warm/15">
-                <h3 className="text-[11px] font-mono text-accent-warm uppercase tracking-[0.15em]">
-                  Journal
-                </h3>
-                <Link
-                  href="/blog"
-                  className="flex items-center gap-1 text-[11px] font-mono text-foreground-3 hover:text-accent-warm transition-colors"
-                >
-                  View all <ArrowUpRight size={10} />
-                </Link>
-              </div>
+        <StaggerContainer className="grid grid-cols-1 lg:grid-cols-2 gap-6" stagger={0.1}>
+          <StaggerItem className="h-full">
+            <Column icon={BookOpen} title="Journal" href="/blog" linkLabel="All articles">
               {LATEST_POSTS.map((post) => (
-                <StaggerItem key={post.slug}>
-                  <BlogPreviewCard {...post} />
-                </StaggerItem>
+                <div key={post.slug} className="py-2">
+                  <PostRow {...post} />
+                </div>
               ))}
-            </div>
-          </StaggerContainer>
-
-          {/* Experiments column */}
-          <StaggerContainer stagger={0.06} delay={0.2}>
-            <div>
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-accent-blue/15">
-                <h3 className="text-[11px] font-mono text-accent-blue uppercase tracking-[0.15em]">
-                  Lab
-                </h3>
-                <Link
-                  href="/ai-lab"
-                  className="flex items-center gap-1 text-[11px] font-mono text-foreground-3 hover:text-accent-blue transition-colors"
-                >
-                  View all <ArrowUpRight size={10} />
-                </Link>
-              </div>
+            </Column>
+          </StaggerItem>
+          <StaggerItem className="h-full">
+            <Column icon={FlaskConical} title="AI Lab" href="/ai-lab" linkLabel="All experiments">
               {LATEST_EXPERIMENTS.map((exp) => (
-                <StaggerItem key={exp.slug}>
-                  <ExperimentPreviewCard {...exp} />
-                </StaggerItem>
+                <div key={exp.slug} className="py-2">
+                  <ExperimentRow {...exp} />
+                </div>
               ))}
-            </div>
-          </StaggerContainer>
-        </div>
+            </Column>
+          </StaggerItem>
+        </StaggerContainer>
       </Container>
     </section>
   )

@@ -48,7 +48,7 @@ export function ProjectStack({ techChoices }: ProjectStackProps) {
               <StaggerItem key={tech}>
                 <div className={cn(
                   'group p-5 rounded-xl h-full',
-                  'bg-surface border border-border/8',
+                  'bg-surface border border-border/10 shadow-card',
                   'hover:border-border/20 transition-colors duration-200',
                 )}>
                   <div className="flex items-center justify-between mb-3">

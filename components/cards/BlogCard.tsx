@@ -13,12 +13,12 @@ import type { BlogPostData, ContentBadge } from '@/lib/data'
 /* ─── Content badge config ───────────────────────────────────── */
 
 const badgeConfig: Record<ContentBadge, { label: string; icon: React.ElementType; color: string }> = {
-  code:         { label: 'Code',         icon: Code2,      color: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/8 border-emerald-500/10' },
-  architecture: { label: 'Architecture', icon: Layers,     color: 'text-blue-600 dark:text-blue-400 bg-blue-500/8 border-blue-500/10' },
-  diagram:      { label: 'Diagrams',     icon: GitBranch,  color: 'text-violet-600 dark:text-violet-400 bg-violet-500/8 border-violet-500/10' },
-  tutorial:     { label: 'Tutorial',     icon: BookOpen,   color: 'text-amber-700 dark:text-amber-400 bg-amber-500/8 border-amber-500/10' },
-  comparison:   { label: 'Comparison',   icon: Columns3,   color: 'text-rose-600 dark:text-rose-400 bg-rose-500/8 border-rose-500/10' },
-  'deep-dive':  { label: 'Deep Dive',    icon: Microscope, color: 'text-cyan-700 dark:text-cyan-400 bg-cyan-500/8 border-cyan-500/10' },
+  code:         { label: 'Code',         icon: Code2,      color: 'text-foreground-2 bg-surface-high border-transparent' },
+  architecture: { label: 'Architecture', icon: Layers,     color: 'text-foreground-2 bg-surface-high border-transparent' },
+  diagram:      { label: 'Diagrams',     icon: GitBranch,  color: 'text-foreground-2 bg-surface-high border-transparent' },
+  tutorial:     { label: 'Tutorial',     icon: BookOpen,   color: 'text-foreground-2 bg-surface-high border-transparent' },
+  comparison:   { label: 'Comparison',   icon: Columns3,   color: 'text-foreground-2 bg-surface-high border-transparent' },
+  'deep-dive':  { label: 'Deep Dive',    icon: Microscope, color: 'text-foreground-2 bg-surface-high border-transparent' },
 }
 
 /* ─── Blog Card ──────────────────────────────────────────────── */
@@ -31,11 +31,11 @@ interface BlogCardProps {
 export function BlogCard({ post, className }: BlogCardProps) {
   const {
     slug, title, summary, category,
-    publishedAt, readingTime, contentBadges, tags,
+    publishedAt, readingTime, contentBadges,
   } = post
 
   return (
-    <motion.div
+    <motion.article
       whileHover={{ y: -4 }}
       transition={{ duration: 0.3, ease: [0.21, 0.47, 0.32, 0.98] }}
       className={cn('h-full', className)}
@@ -43,24 +43,24 @@ export function BlogCard({ post, className }: BlogCardProps) {
       <Link
         href={`/blog/${slug}`}
         className={cn(
-          'group flex flex-col h-full p-5 rounded-xl',
-          'bg-surface border border-border/8',
-          'transition-colors duration-300 ease-out',
-          'hover:border-accent-blue/15 hover:shadow-card-hover',
+          'group flex flex-col h-full p-6 rounded-2xl',
+          'bg-surface border border-border/10 shadow-card',
+          'transition-[box-shadow,border-color] duration-300 ease-out',
+          'hover:border-border/15 hover:shadow-card-hover',
         )}
       >
         {/* ── Top row: category + meta ─────────────────────── */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-accent-blue">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 mb-4">
+          <span className="text-xs font-semibold text-accent-warm">
             {category}
           </span>
-          <div className="flex items-center gap-3 text-[11px] text-foreground-3 font-mono">
-            <span className="flex items-center gap-1">
-              <Calendar size={11} />
-              {formatDate(publishedAt, { month: 'short', day: 'numeric' })}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock size={11} />
+          <div className="flex items-center gap-3 text-xs text-foreground-3">
+            <time dateTime={publishedAt} className="flex items-center gap-1 whitespace-nowrap">
+              <Calendar size={12} />
+              {formatDate(publishedAt, { month: 'short' })}
+            </time>
+            <span className="flex items-center gap-1 whitespace-nowrap">
+              <Clock size={12} />
               {readingTime} min
             </span>
           </div>
@@ -69,7 +69,7 @@ export function BlogCard({ post, className }: BlogCardProps) {
         {/* ── Title ─────────────────────────────────────────── */}
         <h3 className={cn(
           'font-display font-semibold text-lg leading-snug',
-          'text-foreground group-hover:text-accent-blue',
+          'text-foreground group-hover:text-accent-warm',
           'transition-colors duration-200',
         )}>
           {title}
@@ -90,8 +90,8 @@ export function BlogCard({ post, className }: BlogCardProps) {
                 <span
                   key={badge}
                   className={cn(
-                    'inline-flex items-center gap-1 text-[11px] font-semibold',
-                    'px-2 py-0.5 rounded-full border',
+                    'inline-flex items-center gap-1 text-[11px] font-medium',
+                    'px-2 py-0.5 rounded-md border',
                     config.color,
                   )}
                 >
@@ -103,31 +103,20 @@ export function BlogCard({ post, className }: BlogCardProps) {
           </div>
         )}
 
-        {/* ── Tags ──────────────────────────────────────────── */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {tags.slice(0, 4).map((tag) => (
-            <span
-              key={tag}
-              className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-surface-high text-foreground-3 border border-border/5"
-            >
-              {tag}
-            </span>
-          ))}
-        </div>
 
         {/* ── Footer — pushed to bottom ───────────────────── */}
         <div className="mt-auto pt-5">
-          <div className="pt-4 border-t border-border/8 flex items-center justify-between">
-            <span className="text-[11px] font-medium text-accent-blue flex items-center gap-1 group-hover:gap-2 transition-all duration-200">
-              Read Article
-              <ArrowUpRight size={12} />
+          <div className="pt-4 border-t border-border/10 flex items-center justify-between">
+            <span className="text-sm font-medium text-foreground-2 group-hover:text-accent-warm flex items-center gap-1 transition-colors duration-200">
+              Read article
+              <ArrowUpRight size={14} className="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </span>
-            <span className="text-[11px] font-mono text-foreground-3">
+            <span className="text-xs text-foreground-3">
               {readingTime > 10 ? 'Long read' : readingTime > 6 ? 'Medium read' : 'Quick read'}
             </span>
           </div>
         </div>
       </Link>
-    </motion.div>
+    </motion.article>
   )
 }

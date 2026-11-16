@@ -38,7 +38,7 @@ export function Values() {
     <section className="py-20 md:py-28 relative overflow-hidden">
       <AmbientGlow preset="blue" intensity="whisper" />
       <Container className="relative z-10">
-        <FadeIn className="text-center mb-12">
+        <FadeIn className="mb-12 max-w-2xl">
           <span className="section-index block mb-3">PRINCIPLES</span>
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
             Our Principles
@@ -49,13 +49,13 @@ export function Values() {
           {values.map(({ icon: Icon, title, description }) => (
             <StaggerItem key={title}>
               <div className={cn(
-                'h-full p-5 rounded-xl text-center',
-                'bg-surface border border-border/8',
+                'h-full p-6 rounded-2xl',
+                'bg-surface border border-border/10 shadow-card',
                 'transition-all duration-300',
                 'hover:border-border/15 hover:shadow-card',
               )}>
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-violet/10 border border-accent-violet/15 mx-auto mb-4">
-                  <Icon size={18} className="text-accent-violet" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-warm/10 border border-accent-warm/15 mb-4">
+                  <Icon size={18} className="text-accent-warm" />
                 </div>
                 <h3 className="font-display font-semibold text-foreground mb-2">
                   {title}

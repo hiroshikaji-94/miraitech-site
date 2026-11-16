@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import { Container } from '@/components/ui/Container'
-import { AmbientGlow } from '@/components/ui/AmbientGlow'
 import { BlogHeader } from '@/components/sections/blog/BlogHeader'
 import { FeaturedPost } from '@/components/sections/blog/FeaturedPost'
 import { BlogFilters } from '@/components/sections/blog/BlogFilters'
@@ -17,21 +16,26 @@ export default function BlogPage() {
   const [category, setCategory] = useState<BlogCategory>('All')
   const [contentType, setContentType] = useState<ContentBadge | null>(null)
 
+  const isFiltering = category !== 'All' || contentType !== null
+
+  // Unfiltered: the featured post is shown above, so list the rest.
+  // Filtering: search every article, featured included, so counts match results.
   const filteredPosts = useMemo(() => {
-    return restPosts.filter((p) => {
+    if (!isFiltering) return restPosts
+    return ALL_POSTS.filter((p) => {
       if (category !== 'All' && p.category !== category) return false
       if (contentType && !p.contentBadges.includes(contentType)) return false
       return true
     })
-  }, [category, contentType])
+  }, [category, contentType, isFiltering])
 
-  // Category counts (from restPosts, unaffected by content type filter)
+  // Category counts across all articles (unaffected by content type filter)
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const cat of BLOG_CATEGORIES) {
       counts[cat] = cat === 'All'
-        ? restPosts.length
-        : restPosts.filter((p) => p.category === cat).length
+        ? ALL_POSTS.length
+        : ALL_POSTS.filter((p) => p.category === cat).length
     }
     return counts
   }, [])
@@ -43,15 +47,9 @@ export default function BlogPage() {
       {/* Featured post */}
       <FeaturedPost post={featuredPost} />
 
-      {/* Divider */}
-      <Container>
-        <div className="h-px bg-gradient-to-r from-transparent via-border/15 to-transparent" />
-      </Container>
-
       {/* Filters + Timeline */}
-      <section className="py-16 md:py-20 relative overflow-hidden">
-        <AmbientGlow preset="warm" intensity="whisper" />
-        <Container className="relative z-10">
+      <section className="py-16 md:py-20 relative border-t border-border/8 bg-muted">
+        <Container>
           <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-8 lg:gap-12">
             <BlogFilters
               activeCategory={category}

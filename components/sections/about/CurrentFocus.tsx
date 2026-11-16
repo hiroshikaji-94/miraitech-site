@@ -35,16 +35,16 @@ const focuses = [
 
 export function CurrentFocus() {
   return (
-    <section className="py-20 md:py-28 relative overflow-hidden">
+    <section className="py-20 md:py-28 relative overflow-hidden bg-muted border-y border-border/8">
       <AmbientGlow preset="blue-warm" intensity="subtle" />
 
       <Container className="relative z-10">
-        <FadeIn className="text-center mb-12">
+        <FadeIn className="mb-12 max-w-2xl">
           <span className="section-index block mb-3">CAPABILITIES</span>
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
             Our Practice Areas
           </h2>
-          <p className="mt-4 text-foreground-2 max-w-lg mx-auto">
+          <p className="mt-4 text-lg text-foreground-2 leading-relaxed">
             Three disciplines we bring together to deliver end-to-end digital products.
           </p>
         </FadeIn>
@@ -54,7 +54,7 @@ export function CurrentFocus() {
             <StaggerItem key={title}>
               <div className={cn(
                 'h-full p-6 rounded-xl',
-                'bg-surface border border-border/8',
+                'bg-surface border border-border/10 shadow-card',
                 'transition-all duration-300',
                 'hover:border-border/15 hover:shadow-card-hover hover:-translate-y-0.5',
               )}>

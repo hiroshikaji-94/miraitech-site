@@ -19,9 +19,6 @@ export function TeamHero() {
     <section className="relative pt-28 pb-16 md:pt-36 md:pb-24 overflow-hidden">
       <MeridianBackground intensity="subtle" lines={false} parallax={false} />
 
-      {/* Accent lines — top-left */}
-      <div className="pointer-events-none absolute top-0 left-0 w-px h-[30vh] bg-gradient-to-b from-accent-blue/15 to-transparent" />
-      <div className="pointer-events-none absolute top-0 left-0 h-px w-[20vw] bg-gradient-to-r from-accent-blue/15 to-transparent" />
 
       <Container className="relative z-10">
         <motion.div
@@ -58,12 +55,12 @@ export function TeamHero() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.25, ease }}
-          className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-px bg-border/8 border border-border/8 max-w-3xl"
+          className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-px overflow-hidden rounded-2xl bg-border/10 border border-border/10 shadow-card max-w-3xl"
         >
           {facts.map(({ icon: Icon, label, value }) => (
-            <div key={label} className="bg-background p-5">
+            <div key={label} className="bg-surface p-5">
               <div className="flex items-center gap-2 mb-2">
-                <Icon size={13} className="text-foreground-3" />
+                <Icon size={14} className="text-accent-warm" />
                 <span className="text-[11px] font-mono text-foreground-3 uppercase tracking-[0.12em]">
                   {label}
                 </span>

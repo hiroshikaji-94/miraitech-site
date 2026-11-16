@@ -32,9 +32,9 @@ export function ArticleHeader({ post }: ArticleHeaderProps) {
     <section className="relative pt-24 pb-10 md:pt-32 md:pb-14 overflow-hidden">
       <AmbientGlow preset="blue" intensity="subtle" />
       {/* Accent line */}
-      <div className="pointer-events-none absolute top-0 left-0 w-px h-[30vh] bg-gradient-to-b from-accent-warm/15 to-transparent" />
 
-      <Container size="md">
+      <Container size="lg">
+        <div className="max-w-3xl mx-auto xl:mx-0">
         {/* Back link */}
         <motion.div
           initial={{ opacity: 0, x: -12 }}
@@ -141,6 +141,7 @@ export function ArticleHeader({ post }: ArticleHeaderProps) {
           transition={{ duration: 0.5, delay: 0.35 }}
           className="mt-10 h-px bg-gradient-to-r from-transparent via-border/15 to-transparent"
         />
+        </div>
       </Container>
     </section>
   )

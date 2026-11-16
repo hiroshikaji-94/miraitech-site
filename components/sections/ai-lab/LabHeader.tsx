@@ -28,12 +28,9 @@ export function LabHeader() {
     <section className="relative pt-28 pb-16 md:pt-36 md:pb-24 overflow-hidden">
       <MeridianBackground intensity="subtle" lines={false} parallax={false} />
 
-      {/* Accent lines */}
-      <div className="pointer-events-none absolute top-0 left-0 w-px h-[30vh] bg-gradient-to-b from-accent-blue/15 to-transparent" />
-      <div className="pointer-events-none absolute top-0 left-0 h-px w-[20vw] bg-gradient-to-r from-accent-blue/15 to-transparent" />
 
       {/* Floating code lines (right side) */}
-      <div className="pointer-events-none absolute top-8 right-0 w-[500px] hidden lg:block opacity-[0.04]">
+      <div className="pointer-events-none absolute top-8 right-0 w-[500px] hidden dark:lg:block opacity-[0.04]">
         {codeLines.map((line, i) => (
           <motion.div
             key={i}

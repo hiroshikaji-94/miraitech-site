@@ -20,7 +20,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Frontend',
     icon: Monitor,
-    color: 'text-cyan-700 dark:text-cyan-400 border-cyan-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'React', 'Next.js', 'TypeScript', 'Tailwind CSS', 'Framer Motion',
       'Three.js', 'Vue.js', 'Svelte', 'HTML5', 'CSS3', 'SASS',
@@ -30,7 +30,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Backend',
     icon: Server,
-    color: 'text-emerald-700 dark:text-emerald-400 border-emerald-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'Node.js', 'Python', 'FastAPI', 'Django', 'Express', 'NestJS',
       'GraphQL', 'REST', 'tRPC', 'Prisma', 'Drizzle',
@@ -39,7 +39,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'AI / ML',
     icon: Brain,
-    color: 'text-accent-blue border-accent-blue/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'PyTorch', 'TensorFlow', 'LangChain', 'LlamaIndex', 'OpenAI API',
       'Hugging Face', 'RAG', 'Fine-tuning', 'Vector DBs',
@@ -49,7 +49,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Databases',
     icon: Database,
-    color: 'text-amber-700 dark:text-amber-400 border-amber-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'PostgreSQL', 'MongoDB', 'Redis', 'Supabase', 'Firebase',
       'Pinecone', 'Weaviate', 'ChromaDB', 'MySQL', 'DynamoDB',
@@ -58,7 +58,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Cloud / DevOps',
     icon: Cloud,
-    color: 'text-rose-600 dark:text-rose-400 border-rose-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'AWS', 'GCP', 'Azure', 'Docker', 'Kubernetes', 'Vercel',
       'CI/CD', 'Terraform', 'GitHub Actions', 'Cloudflare',
@@ -67,7 +67,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Design / Product',
     icon: Palette,
-    color: 'text-fuchsia-700 dark:text-fuchsia-400 border-fuchsia-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'Figma', 'Adobe Creative Suite', 'UI/UX Design', 'Design Systems',
       'Prototyping', 'User Research', 'A/B Testing',
@@ -76,7 +76,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Collaboration',
     icon: GitBranch,
-    color: 'text-orange-700 dark:text-orange-400 border-orange-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'Git', 'GitHub', 'Linear', 'Notion', 'Slack',
       'Jira', 'Confluence', 'Agile/Scrum',
@@ -85,7 +85,7 @@ const skillGroups: SkillGroup[] = [
   {
     category: 'Testing / Quality',
     icon: TestTube2,
-    color: 'text-teal-700 dark:text-teal-400 border-teal-400/20',
+    color: 'text-accent-warm border-accent-warm/20',
     skills: [
       'Jest', 'Playwright', 'Cypress', 'Vitest',
       'Testing Library', 'Lighthouse', 'Sentry', 'DataDog',
@@ -98,12 +98,12 @@ export function Skills() {
     <section className="py-20 md:py-28 relative overflow-hidden">
       <FlowLines accent="mixed" />
       <Container className="relative z-10">
-        <FadeIn className="text-center mb-12">
+        <FadeIn className="mb-12 max-w-2xl">
           <span className="section-index block mb-3">STACK</span>
           <h2 className="font-display text-3xl md:text-4xl font-bold tracking-tight">
             Our Collective Toolkit
           </h2>
-          <p className="mt-4 text-foreground-2 max-w-lg mx-auto">
+          <p className="mt-4 text-lg text-foreground-2 leading-relaxed">
             Technologies our team uses daily to build production systems.
           </p>
         </FadeIn>
@@ -113,7 +113,7 @@ export function Skills() {
             <StaggerItem key={category}>
               <div className={cn(
                 'p-5 rounded-xl h-full',
-                'bg-surface border border-border/8',
+                'bg-surface border border-border/10 shadow-card',
               )}>
                 <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border/8">
                   <Icon size={14} className={color.split(' ')[0]} />

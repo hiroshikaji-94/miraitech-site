@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Container } from '@/components/ui/Container'
 import { FadeIn } from '@/components/ui/FadeIn'
-import { FlowLines } from '@/components/ui/FlowLines'
 import { ExperimentCard } from '@/components/cards/ExperimentCard'
 import { ExperimentFilters } from './ExperimentFilters'
 import {
@@ -31,17 +30,15 @@ export function ExperimentGrid() {
   }, [])
 
   return (
-    <section className="py-16 md:py-20 relative overflow-hidden">
-      <FlowLines accent="blue" />
-      <Container className="relative z-10">
+    <section className="pb-20 md:pb-28 relative">
+      <Container>
         {/* ── Filter bar ──────────────────────────────────── */}
         <FadeIn>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-mono font-semibold text-foreground-2 uppercase tracking-wider">
-                All Experiments
-              </span>
-            </div>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8 pb-6 border-b border-border/10">
+            <p className="text-sm text-foreground-3" aria-live="polite">
+              Showing <span className="font-semibold text-foreground">{filtered.length}</span>{' '}
+              {activeFilter === 'All' ? 'experiments' : `${activeFilter} experiments`}
+            </p>
             <ExperimentFilters
               active={activeFilter}
               onChange={setActiveFilter}
@@ -74,7 +71,7 @@ export function ExperimentGrid() {
 
         {filtered.length === 0 && (
           <div className="text-center py-20">
-            <p className="text-foreground-3 font-mono text-sm">
+            <p className="text-foreground-3 text-sm">
               No experiments in this category yet.
             </p>
           </div>

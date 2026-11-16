@@ -14,12 +14,12 @@ import {
   BarChart3,
   ShieldAlert,
   AlertTriangle,
-  ArrowDown,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Container } from '@/components/ui/Container'
 import { Button } from '@/components/ui/Button'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/ui/FadeIn'
+import { CTAPanel } from '@/components/ui/CTAPanel'
 import type { ExperimentData } from '@/lib/data'
 import type { ExperimentDetailContent } from '@/lib/experiment-details'
 
@@ -56,8 +56,8 @@ function SectionLabel({ icon: Icon, label, color = 'text-accent-blue', bg = 'bg-
 
 export function ExperimentDetailClient({ experiment, details, prev, next }: Props) {
   const statusConfig = {
-    live:      { label: 'Live',      color: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500 dark:bg-emerald-400/10' },
-    research:  { label: 'Research',  color: 'text-violet-600 dark:text-violet-400 bg-violet-500 dark:bg-violet-400/10' },
+    live:      { label: 'Live',      color: 'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10' },
+    research:  { label: 'Research',  color: 'text-violet-600 dark:text-violet-400 bg-violet-500/10' },
   }[experiment.status]
 
   return (
@@ -301,7 +301,7 @@ export function ExperimentDetailClient({ experiment, details, prev, next }: Prop
               <StaggerItem key={i}>
                 <div className={cn(
                   'p-5 rounded-xl h-full',
-                  'bg-surface border border-border/8',
+                  'bg-surface border border-border/10 shadow-card',
                   'hover:border-accent-blue/15 transition-colors duration-200',
                 )}>
                   <div className="flex items-start gap-3">
@@ -375,7 +375,7 @@ export function ExperimentDetailClient({ experiment, details, prev, next }: Prop
                 <StaggerItem key={i}>
                   <div className={cn(
                     'p-6 rounded-xl',
-                    'bg-surface border border-border/8',
+                    'bg-surface border border-border/10 shadow-card',
                     'hover:border-border/15 transition-colors duration-200',
                   )}>
                     <div className="flex items-center gap-2 mb-2">
@@ -398,32 +398,16 @@ export function ExperimentDetailClient({ experiment, details, prev, next }: Prop
         </section>
       )}
 
-      {/* ════════════════════════════════════════════════════════════
-          CTA
-      ════════════════════════════════════════════════════════════ */}
-      <section className="py-20 md:py-28 border-t border-border/6">
-        <Container size="sm" className="text-center">
-          <FadeIn>
-            <span className="section-index block mb-4">NEXT</span>
-            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
-              Interested in working with{' '}
-              <span className="gradient-text">Forward?</span>
-            </h2>
-            <p className="text-foreground-2 mb-8 max-w-md mx-auto">
-              We build production AI systems and run experiments like this for teams who value rigorous engineering.
-            </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button href="/contact" size="lg">
-                Start a Conversation
-                <ArrowRight size={15} />
-              </Button>
-              <Button href="/ai-lab" variant="secondary" size="lg">
-                More Experiments
-              </Button>
-            </div>
-          </FadeIn>
-        </Container>
-      </section>
+      <CTAPanel
+        eyebrow="Next"
+        title="Want research like this"
+        highlight="turned into a product?"
+        description="We run experiments like this to inform client work, then build the production version with the evaluation and monitoring it needs."
+        actions={[
+          { label: 'Start a conversation', href: '/contact' },
+          { label: 'More experiments',     href: '/ai-lab', variant: 'secondary' },
+        ]}
+      />
 
       {/* ════════════════════════════════════════════════════════════
           EXPERIMENT NAVIGATION
@@ -464,7 +448,7 @@ function ExperimentNavCard({
       href={`/ai-lab/${experiment.slug}`}
       className={cn(
         'group flex items-center gap-4 p-4 rounded-xl',
-        'bg-surface border border-border/8',
+        'bg-surface border border-border/10 shadow-card',
         'hover:border-accent-blue/20 hover:shadow-card-hover',
         'transition-all duration-300',
         isPrev ? 'flex-row' : 'flex-row-reverse text-right',
