@@ -1,31 +1,31 @@
 ---
-title: Building Production RAG Systems That Actually Work
+title: Notes on running RAG in production
 ---
 
-Most tutorials show you how to build a RAG system in 20 lines of code. Load some documents, chunk them, embed them, and query with an LLM. That gets you a demo. Getting to production is a different story entirely.
+Most tutorials build a RAG system in 20 lines of code: load some documents, chunk them, embed them and query an LLM. That gets you a demo. Production takes a lot more.
 
-This article covers what we learned building RAG pipelines that serve thousands of daily queries — the retrieval strategies, evaluation frameworks, and operational patterns that separate prototypes from production systems.
+We have built several RAG pipelines that now handle thousands of queries a day. This is what we learned about retrieval, evaluation and running them.
 
-## Why Most RAG Systems Fail in Production
+## How RAG systems fail in production
 
-The gap between a RAG demo and a production system is enormous. Here are the failure modes we've seen repeatedly:
+These are the failure modes we have seen repeatedly:
 
-- **Retrieval quality degrades silently** — your system returns plausible-sounding but wrong answers, and nobody notices until a customer complains
-- **Chunking strategies break on real documents** — PDFs with tables, mixed-language content, and nested headers don't chunk cleanly
-- **Embedding drift** — as you add new documents, the semantic space shifts and older queries degrade
-- **No evaluation pipeline** — without systematic measurement, you're flying blind
+- **Retrieval degrades quietly.** The system returns plausible but wrong answers, and nobody notices until a customer complains.
+- **Chunking breaks on real documents.** PDFs with tables, mixed-language content and nested headers do not split cleanly.
+- **Embeddings drift.** As new documents are added, the semantic space shifts and older queries get worse results.
+- **There is no evaluation pipeline.** Without systematic measurement, the three problems above stay invisible.
 
-<Callout type="warning" title="The Silent Failure Problem">
-RAG systems fail differently than traditional software. A database query either returns correct results or throws an error. A RAG system can return confident, well-formatted, completely wrong answers. This makes monitoring and evaluation critical.
+<Callout type="warning" title="Wrong answers don't throw errors">
+A database query either returns correct results or throws an error. A RAG system can return a confident, well-formatted answer that is completely wrong. That is why we put so much weight on monitoring and evaluation.
 </Callout>
 
-## Hybrid Retrieval Architecture
+## Hybrid retrieval
 
-Pure vector similarity search has a fundamental limitation: it struggles with exact matches, specific identifiers, and structured queries. The solution is hybrid retrieval — combining dense vector search with sparse keyword matching.
+Vector similarity search on its own struggles with exact matches, specific identifiers and structured queries. We handle this with hybrid retrieval, which runs dense vector search and sparse keyword matching side by side.
 
-### Dense + Sparse Pipeline
+### Dense and sparse pipeline
 
-Here's the architecture we use for production RAG:
+This is the retrieval step we run in production:
 
 ```typescript title="retrieval/hybrid.ts"
 interface RetrievalResult {
@@ -53,7 +53,7 @@ async function hybridRetrieve(
 }
 ```
 
-The key insight is **Reciprocal Rank Fusion (RRF)**. Rather than trying to normalize scores across different retrieval methods (which is unreliable), RRF uses rank positions to merge results:
+The two result lists are merged with **Reciprocal Rank Fusion (RRF)**. Normalizing scores across different retrieval methods is unreliable, so RRF merges by rank position instead:
 
 ```python title="retrieval/rrf.py"
 def reciprocal_rank_fusion(
@@ -76,43 +76,43 @@ def reciprocal_rank_fusion(
     return sorted(scores.items(), key=lambda x: x[1], reverse=True)
 ```
 
-### Why Not Just Use Vector Search?
+### Vector search vs hybrid search
 
-| Scenario | Vector Search | Hybrid Search |
+| Scenario | Vector search | Hybrid search |
 |----------|---------------|---------------|
-| Exact ID lookup ('order #12345') | Poor — embeds semantically | Excellent — BM25 exact match |
-| Conceptual questions | Excellent — semantic similarity | Excellent — dense component handles this |
-| Acronyms and jargon | Inconsistent — depends on training | Good — sparse catches exact terms |
-| Multi-language queries | Good if multilingual model | Better — both signals complement |
-| Latency (p99) | ~50ms | ~80ms (parallel, bounded by slower) |
+| Exact ID lookup ('order #12345') | Poor (embeds semantically) | Excellent (BM25 exact match) |
+| Conceptual questions | Excellent (semantic similarity) | Excellent (the dense side handles these) |
+| Acronyms and jargon | Inconsistent (depends on training) | Good (sparse catches exact terms) |
+| Multi-language queries | Good with a multilingual model | Better (the two signals complement each other) |
+| Latency (p99) | ~50ms | ~80ms (parallel, bounded by the slower one) |
 
-## Chunking Strategies That Survive Real Documents
+## Chunking real documents
 
-The default "split by N tokens with M overlap" approach falls apart quickly with real-world documents. Here's what works better:
+The default "split by N tokens with M overlap" approach falls apart quickly on real documents. What has worked better for us:
 
-<Step number={1} title="Semantic Chunking">
-Instead of fixed-size chunks, split at natural semantic boundaries. Use sentence embeddings to detect topic shifts, and split where cosine similarity between adjacent sentences drops below a threshold.
+<Step number={1} title="Semantic chunking">
+Split at topic boundaries instead of at a fixed size. Embed each sentence and start a new chunk where the cosine similarity between adjacent sentences drops below a threshold.
 </Step>
 
-<Step number={2} title="Hierarchical Chunking">
-Maintain document structure. A chunk should know its parent section, document title, and position in the hierarchy. This context is crucial for the LLM to generate accurate answers.
+<Step number={2} title="Hierarchical chunking">
+Keep the document structure. Each chunk should know its parent section, the document title and its position in the hierarchy. The LLM needs that context to answer accurately.
 </Step>
 
-<Step number={3} title="Metadata Enrichment">
-Before storing chunks, enrich them with extracted metadata — dates, entities, categories, and a generated summary. This enables pre-filtering before retrieval and improves relevance.
+<Step number={3} title="Metadata enrichment">
+Before storing chunks, add extracted metadata: dates, entities, categories and a generated summary. That lets you filter before retrieval, which improves relevance.
 </Step>
 
-<Callout type="tip" title="The Parent-Child Pattern">
-Store small chunks for precise retrieval, but return the parent chunk (larger context window) to the LLM. This gives you the best of both worlds: retrieval precision with generation context.
+<Callout type="tip" title="The parent-child pattern">
+Store small chunks for precise retrieval, but give the LLM the larger parent chunk so it has enough context to write the answer.
 </Callout>
 
-## Evaluation-Driven Development
+## Evaluation-driven development
 
-The most important lesson we've learned: **build your evaluation pipeline before you build your RAG pipeline**. Without quantitative measurement, every change is a guess.
+The most important thing we learned: **build the evaluation pipeline before the RAG pipeline**. Without numbers, every change is a guess.
 
-### The Eval Framework
+### The eval framework
 
-We use a three-layer evaluation approach:
+We evaluate at three layers:
 
 ```typescript title="eval/framework.ts"
 interface RAGEvalSuite {
@@ -137,7 +137,7 @@ interface RAGEvalSuite {
 }
 ```
 
-### CI/CD Integration
+### CI/CD integration
 
 Every PR that touches the retrieval pipeline runs the eval suite:
 
@@ -158,15 +158,15 @@ Every PR that touches the retrieval pipeline runs the eval suite:
       // Post metrics comparison to PR
 ```
 
-<KeyTakeaway title="Key Takeaway">
-Treat RAG evaluation like unit tests — they run on every change, they have clear pass/fail thresholds, and they block deployment when quality degrades. The specific metrics matter less than having *any* systematic measurement in place.
+<KeyTakeaway title="Treat evals like unit tests">
+Evals should run on every change, have clear pass/fail thresholds and block deployment when quality drops. The exact metrics matter less than having *any* systematic measurement in place.
 </KeyTakeaway>
 
-## Production Monitoring
+## Production monitoring
 
-Once deployed, you need continuous monitoring. The metrics we track:
+Once the system is live, we track these metrics:
 
-| Metric | Target | Alert Threshold |
+| Metric | Target | Alert threshold |
 |--------|--------|-----------------|
 | Retrieval recall@10 | > 0.90 | < 0.85 |
 | Answer faithfulness | > 0.92 | < 0.88 |
@@ -174,19 +174,8 @@ Once deployed, you need continuous monitoring. The metrics we track:
 | p95 latency | < 2s | > 3s |
 | Token cost per query | < $0.03 | > $0.05 |
 
-> The best RAG system is the one you can measure, iterate on, and trust. Everything else is a demo.
-
-## Conclusion
-
-Building production RAG is an engineering discipline, not a prompting exercise. The patterns that matter most:
-
-1. **Hybrid retrieval** with Reciprocal Rank Fusion for robust search across query types
-2. **Semantic chunking** with hierarchical context preservation
-3. **Evaluation-first development** with quantitative thresholds in CI/CD
-4. **Continuous monitoring** with alerting on quality regression
-
-The gap between a RAG demo and a production system is bridged by engineering rigor — the same discipline we apply to any other production system.
+## Where to start
 
 <KeyTakeaway>
-Start with evaluation. If you can measure retrieval quality and answer faithfulness from day one, every subsequent decision becomes data-driven rather than intuition-driven. The eval pipeline is the highest-leverage investment you can make.
+Start with evaluation. If you can measure retrieval quality and answer faithfulness from day one, later decisions can rest on data instead of intuition.
 </KeyTakeaway>

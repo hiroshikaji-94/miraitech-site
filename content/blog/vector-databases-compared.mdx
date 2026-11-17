@@ -1,24 +1,22 @@
 ---
-title: "Vector Databases Compared: pgvector vs Pinecone vs Qdrant"
+title: "pgvector, Pinecone and Qdrant on the same workload"
 ---
 
-## Why This Comparison Exists
+## Why we compared them
 
-Choosing a vector database is one of those decisions that feels reversible but is not. Migration costs are real — re-indexing millions of embeddings, rewriting query logic, updating infrastructure. At MiraiTech, we have deployed all three of these solutions across different projects, and the right choice depends entirely on your constraints.
+Choosing a vector database feels like a reversible decision. In practice, switching means re-indexing millions of embeddings, rewriting query logic and changing infrastructure. At MiraiTech we have run all three in production on different projects, and the right choice depends on the project's constraints.
 
-This is not a feature checklist. It is an honest account of what we have experienced running these systems in production with real workloads.
-
-## The Contenders
+## The three options
 
 **pgvector** is a PostgreSQL extension that adds vector similarity search to your existing Postgres database. It is the "no new infrastructure" option.
 
-**Pinecone** is a fully managed vector database service. You get an API, a dashboard, and zero operational burden.
+**Pinecone** is a fully managed vector database service. You get an API and a dashboard, and there is nothing to operate.
 
-**Qdrant** is an open-source vector search engine written in Rust. You can self-host it or use their managed cloud offering.
+**Qdrant** is an open-source vector search engine written in Rust. You can self-host it or use their managed cloud.
 
-## Benchmark Results
+## Benchmark results
 
-We ran benchmarks on a standardized workload: 1 million vectors at 1536 dimensions (OpenAI `text-embedding-3-small` output size), measured on comparable hardware.
+We benchmarked all three on the same workload: 1 million vectors at 1536 dimensions (the output size of OpenAI `text-embedding-3-small`), on comparable hardware.
 
 | Metric | pgvector (HNSW) | Pinecone (s1) | Qdrant (self-hosted) |
 |--------|----------------|---------------|---------------------|
@@ -30,13 +28,13 @@ We ran benchmarks on a standardized workload: 1 million vectors at 1536 dimensio
 | Throughput (QPS) | 850 | 400 | 2,200 |
 | Filtered query P50 | 15ms | 28ms | 6ms |
 
-<Callout type="warning" title="Benchmarks Are Context-Dependent">
-These numbers reflect our specific workload, hardware, and tuning. Pinecone's latency includes network round-trip since it is a remote service — for a fair comparison of raw engine performance, subtract ~15ms. Your results will vary based on dimensionality, index parameters, and query patterns.
+<Callout type="warning" title="Your numbers will differ">
+These numbers reflect our workload, hardware and tuning. Pinecone is a remote service, so its latency includes a network round-trip; subtract ~15ms for a fair comparison of raw engine performance. Dimensionality, index parameters and query patterns will all change your results.
 </Callout>
 
-## pgvector: When Your Database Is Enough
+## pgvector: when your database is enough
 
-### Setup
+### Setting up pgvector
 
 ```sql title="pgvector_setup.sql"
 -- Enable the extension
@@ -69,17 +67,17 @@ ORDER BY embedding <=> $1::vector
 LIMIT 10;
 ```
 
-### Strengths
+### What pgvector does well
 
-pgvector's killer advantage is **no new infrastructure**. If you already run Postgres — and you almost certainly do — you can add vector search without introducing a new database, new backups, new monitoring, or new failure modes. Your vectors live alongside your relational data, which means joins are trivial and transactional consistency is free.
+pgvector's main advantage is **no new infrastructure**. If you already run Postgres, and you probably do, you can add vector search without taking on another database with its own backups, monitoring and failure modes. Your vectors live next to your relational data, so joins are trivial and transactional consistency is free.
 
-### Where It Struggles
+### Where pgvector struggles
 
-pgvector starts to strain above 5-10 million vectors on a single instance. HNSW index builds are slow and memory-intensive. There is no built-in sharding — if you outgrow a single machine, you are on your own with Citus or manual partitioning.
+pgvector starts to strain above 5-10 million vectors on a single instance. HNSW index builds are slow and use a lot of memory. There is no built-in sharding, so if you outgrow a single machine, you are on your own with Citus or manual partitioning.
 
-## Pinecone: Maximum Convenience
+## Pinecone: the managed option
 
-### Setup
+### Setting up Pinecone
 
 ```python title="pinecone_setup.py"
 from pinecone import Pinecone, ServerlessSpec
@@ -125,54 +123,54 @@ results = index.query(
 )
 ```
 
-### Strengths
+### What Pinecone does well
 
-Pinecone is genuinely zero-ops. No capacity planning, no index tuning, no infrastructure management. Their serverless offering scales automatically and you pay per query. For teams without dedicated infrastructure engineers, this is significant.
+Pinecone needs no operations work: no capacity planning, index tuning or infrastructure management. The serverless offering scales automatically and you pay per query. For a team without dedicated infrastructure engineers, that matters a lot.
 
-Namespaces are elegant for multi-tenancy — each customer's vectors are isolated without managing separate indexes.
+Namespaces work well for multi-tenancy: each customer's vectors are isolated without separate indexes.
 
-### Where It Struggles
+### Where Pinecone struggles
 
-Cost scales faster than alternatives. At 10 million vectors with moderate query volume, we were paying roughly 4x what equivalent self-hosted Qdrant cost us. Network latency is unavoidable — every query is an HTTP round-trip. And vendor lock-in is real; there is no standard vector database migration format.
+Cost grows faster than with the alternatives. At 10 million vectors with moderate query volume, we paid roughly 4x what an equivalent self-hosted Qdrant setup cost. Every query is an HTTP round-trip, so network latency is unavoidable. Lock-in is also a concern: there is no standard migration format between vector databases.
 
-## Qdrant: The Performance Champion
+## Qdrant: the fastest in our tests
 
-### Strengths
+### What Qdrant does well
 
-Qdrant consistently delivers the best raw performance in our benchmarks. Its Rust implementation and HNSW optimizations produce remarkable throughput. The filtering system is particularly strong — it applies filters during the HNSW traversal rather than post-query, which means filtered queries are nearly as fast as unfiltered ones.
+Qdrant had the best raw performance in our benchmarks. Its Rust implementation and HNSW optimizations give it the highest throughput of the three. Filtering is its strongest feature: filters run during the HNSW traversal instead of after the query, so filtered queries are nearly as fast as unfiltered ones.
 
-The API is well-designed, with first-class support for batch operations, named vectors (multiple vector types per point), and payload indexing.
+The API is well designed, with good support for batch operations, named vectors (multiple vector types per point) and payload indexing.
 
-### Where It Struggles
+### Where Qdrant struggles
 
-Self-hosting means you own the operational burden: backups, monitoring, scaling, upgrades. Their managed cloud offering mitigates this but is still newer and less battle-tested than Pinecone's. Documentation, while improving, has gaps in advanced clustering configurations.
+Self-hosting means the operational work is yours: backups, monitoring, scaling and upgrades. Their managed cloud helps with this, but it is newer and less proven than Pinecone's. The documentation is improving but has gaps in advanced clustering configurations.
 
-## Cost Analysis at Scale
+## Cost at 5 million vectors
 
-Cost is often the deciding factor. Here is what we have seen at the 5 million vector scale with moderate query loads (roughly 100 QPS average).
+Cost often decides it. These are our numbers at 5 million vectors with moderate query loads (roughly 100 QPS on average).
 
-| Cost Component | pgvector | Pinecone Serverless | Qdrant (self-hosted) | Qdrant Cloud |
+| Cost component | pgvector | Pinecone Serverless | Qdrant (self-hosted) | Qdrant Cloud |
 |---------------|----------|-------------------|---------------------|-------------|
 | Compute/hosting | $0 (existing DB)* | Included | ~$200/mo (dedicated) | ~$150/mo |
 | Storage | ~$10/mo | ~$75/mo | ~$15/mo | ~$40/mo |
 | Query costs | $0 | ~$120/mo at 100 QPS | $0 | Included |
-| Operational overhead | Low | None | Medium-High | Low |
+| Operational overhead | Low | None | Medium-high | Low |
 | **Estimated monthly total** | **~$10** | **~$195** | **~$215** | **~$190** |
 
-*pgvector's compute cost is effectively zero if your Postgres instance has headroom. If you need to upgrade your instance to handle vector workloads, factor in that cost.
+*pgvector's compute cost is effectively zero if your Postgres instance has headroom. If the vector workload forces an instance upgrade, add that cost.
 
-<Callout type="info" title="The Hidden Cost: Engineering Time">
-These numbers do not capture engineering time. Setting up monitoring, writing migration scripts, debugging index performance — these hours add up. Pinecone's higher dollar cost often pays for itself in reduced engineering overhead, especially for smaller teams.
+<Callout type="info" title="Engineering time is not in the table">
+Setting up monitoring, writing migration scripts and debugging index performance all take engineering hours, and they add up. Pinecone's higher bill often pays for itself in engineering time saved, especially for smaller teams.
 </Callout>
 
-## Decision Framework
+## How we choose
 
-After deploying all three, we have settled on a simple framework:
+After deploying all three, these are our rules:
 
 **Choose pgvector when:**
 - You have fewer than 5 million vectors
 - Your queries always combine vector search with relational filters
-- You want zero additional infrastructure
+- You want no additional infrastructure
 - Latency under 50ms is acceptable
 
 **Choose Pinecone when:**
@@ -182,14 +180,14 @@ After deploying all three, we have settled on a simple framework:
 - You need to scale past 10 million vectors without planning
 
 **Choose Qdrant when:**
-- Raw query performance is critical
+- Raw query performance matters most
 - You have the engineering capacity for self-hosting (or use their cloud)
 - You need advanced features like named vectors or complex filtering
 - Cost at scale is a primary concern
 
-## Migration Strategies
+## Migrating between them
 
-When you do need to migrate — and we have done this twice — the process is:
+When you do need to migrate (we have done it twice), this is the process:
 
 1. **Dual-write first.** Write new vectors to both old and new systems. Do not try a big-bang migration.
 2. **Backfill in batches.** Re-embed and insert historical data in chunks of 10,000. Rate-limit to avoid overwhelming either system.
@@ -197,12 +195,12 @@ When you do need to migrate — and we have done this twice — the process is:
 4. **Gradual cutover.** Route 10% of read traffic to the new system, then 50%, then 100%. Monitor recall and latency at each stage.
 5. **Decommission after a soak period.** Keep the old system running for 30 days after full cutover, just in case.
 
-## What We Use Today
+## What we use today
 
-For most projects, we start with pgvector. It eliminates an entire category of operational complexity, and for datasets under a few million vectors with moderate query loads, it performs admirably. When a project outgrows it — and we have a clear signal that it has, not a premature optimization hunch — we migrate to Qdrant.
+For most projects we start with pgvector. It removes a whole category of operational complexity, and for datasets under a few million vectors with moderate query loads it performs well. We migrate a project to Qdrant once there is a clear signal that it has outgrown pgvector. A hunch about future scale does not count.
 
-We reserve Pinecone for client projects where the client's team will own operations after handoff and does not have infrastructure expertise. The managed experience is worth the premium in those cases.
+We use Pinecone for client projects where the client's team will run operations after handoff and does not have infrastructure expertise. In those cases the managed service is worth the premium.
 
-<KeyTakeaway title="Start Boring, Scale Intentionally">
-The best vector database is the one that matches your current scale and team capacity. pgvector is not glamorous, but it has saved us from managing additional infrastructure on a dozen projects. When you genuinely need more — and benchmarks on your actual workload prove it — migrate deliberately with dual-writes and shadow reads. The vector database landscape is evolving fast; avoid locking in prematurely.
+<KeyTakeaway title="Start with what you already run">
+Pick the database that fits your current scale and your team's capacity. pgvector is not glamorous, but it has saved us from managing additional infrastructure on a dozen projects. When you need more, and benchmarks on your own workload show it, migrate deliberately with dual-writes and shadow reads. These products are changing quickly, so avoid locking in too early.
 </KeyTakeaway>

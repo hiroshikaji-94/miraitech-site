@@ -5,19 +5,20 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost'
 type ButtonSize = 'sm' | 'md' | 'lg'
 
 interface ButtonBaseProps {
-  variant?:  ButtonVariant
-  size?:     ButtonSize
+  variant?:   ButtonVariant
+  size?:      ButtonSize
   className?: string
-  children:  React.ReactNode
+  children:   React.ReactNode
 }
 
 interface ButtonAsButton extends ButtonBaseProps,
   Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, keyof ButtonBaseProps> {
-  href?: never
+  href?:     never
   external?: never
 }
 
-interface ButtonAsLink extends ButtonBaseProps {
+interface ButtonAsLink extends ButtonBaseProps,
+  Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, keyof ButtonBaseProps | 'href'> {
   href:      string
   external?: boolean
 }
@@ -25,23 +26,18 @@ interface ButtonAsLink extends ButtonBaseProps {
 type ButtonProps = ButtonAsButton | ButtonAsLink
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: [
-    'bg-accent-warm text-white',
-    'shadow-[0_1px_2px_rgb(15_23_42/0.12),inset_0_1px_0_rgb(255_255_255/0.12)]',
-    'hover:bg-accent-violet',
-  ].join(' '),
-  secondary: [
-    'border border-border/15 bg-surface text-foreground',
-    'shadow-[0_1px_2px_rgb(15_23_42/0.05)]',
-    'hover:bg-surface-high hover:border-border/25',
-  ].join(' '),
-  ghost: 'text-foreground-2 hover:text-foreground hover:bg-surface-high',
+  primary:
+    'bg-accent text-on-accent shadow-[0_8px_24px_-10px_rgb(var(--color-accent)/0.55)] hover:brightness-110',
+  secondary:
+    'border border-border/15 bg-transparent text-foreground hover:border-border/30 hover:bg-foreground/[0.04]',
+  ghost:
+    'text-foreground-2 hover:text-foreground',
 }
 
 const sizeStyles: Record<ButtonSize, string> = {
-  sm: 'h-8  px-3   text-xs  gap-1.5 rounded-md',
-  md: 'h-10 px-4   text-sm  gap-2   rounded-lg',
-  lg: 'h-11 px-5   text-sm  gap-2   rounded-lg',
+  sm: 'h-9 px-4 text-[13px] gap-1.5',
+  md: 'h-11 px-5 text-sm gap-2',
+  lg: 'h-12 px-6 text-[15px] gap-2',
 }
 
 export function Button({
@@ -52,34 +48,29 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = cn(
-    'inline-flex items-center justify-center font-medium whitespace-nowrap',
-    'transition-all duration-200 ease-out',
-    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-blue/70',
-    'disabled:opacity-50 disabled:pointer-events-none',
-    'active:scale-[0.98]',
+    'inline-flex items-center justify-center rounded-btn font-semibold whitespace-nowrap',
+    'transition-[filter,background-color,border-color,color] duration-150',
+    'disabled:pointer-events-none disabled:opacity-50',
     variantStyles[variant],
     sizeStyles[size],
     className,
   )
 
-  // Link variant
   if ('href' in props && props.href) {
     const { href, external, ...rest } = props as ButtonAsLink
-
-    if (external) {
+    if (external || href.startsWith('mailto:')) {
       return (
         <a
           href={href}
-          target="_blank"
-          rel="noopener noreferrer"
+          target={external ? '_blank' : undefined}
+          rel={external ? 'noopener noreferrer' : undefined}
           className={classes}
-          {...(rest as React.AnchorHTMLAttributes<HTMLAnchorElement>)}
+          {...rest}
         >
           {children}
         </a>
       )
     }
-
     return (
       <Link href={href} className={classes} {...rest}>
         {children}
@@ -87,10 +78,8 @@ export function Button({
     )
   }
 
-  // Button variant
-  const { ...buttonProps } = props as ButtonAsButton
   return (
-    <button className={classes} {...buttonProps}>
+    <button className={classes} {...(props as ButtonAsButton)}>
       {children}
     </button>
   )

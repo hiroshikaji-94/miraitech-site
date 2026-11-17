@@ -1,34 +1,35 @@
-# MiraiTech — company site
+# MiraiTech website
 
-Marketing site for **MiraiTech**, an AI-focused software engineering team in Tokyo.
-Built with Next.js (App Router), React 19, Tailwind CSS, Framer Motion, and MDX.
+The website of MiraiTech, a small software engineering team in Tokyo.
+Built with Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS and MDX.
 
-## Pages
+## Where things live
 
-| Route | What it shows |
+| Route | Content |
 |---|---|
-| `/` | Hero, selected work, stack, writing & experiments, studio location, CTA |
-| `/projects`, `/projects/[slug]` | Case studies (data in `lib/data.ts` + `lib/project-details.ts`) |
-| `/ai-lab`, `/ai-lab/[slug]` | Experiments (data in `lib/data.ts` + `lib/experiment-details.ts`) |
-| `/blog`, `/blog/[slug]` | Journal posts (metadata in `lib/data.ts`, body in `content/blog/*.mdx`) |
-| `/team` | Leadership and engineers (data in `lib/team.ts`) |
-| `/about` | Origin story, practice areas, toolkit, timeline, principles |
-| `/contact` | Email-first contact page |
+| `/` | Intro, selected work, services, the team, latest writing and experiments |
+| `/projects`, `/projects/[slug]` | Case studies. Card data is in `lib/data.ts`, case-study text in `lib/project-details.ts` |
+| `/ai-lab`, `/ai-lab/[slug]` | Experiments. List data is in `lib/data.ts`, detail text in `lib/experiment-details.ts` |
+| `/blog`, `/blog/[slug]` | Writing. Titles and summaries are in `lib/data.ts`, articles in `content/blog/*.mdx` |
+| `/team` | People and how we work, from `lib/team.ts` |
+| `/about` | Background, principles, timeline and tools, from `lib/about.ts` |
+| `/contact` | Email address and studio details |
 
-Brand name, email, location, and status badge live in `lib/site.ts`.
+The company name, email, address and availability are in `lib/site.ts`.
+Colors are defined once in `app/globals.css` (light and dark), and `tailwind.config.ts` maps them to class names.
 
-## Getting started
+## Running it locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Then open http://localhost:3000.
 
 ## Scripts
 
-- `npm run dev` — development server
-- `npm run build` — production build
-- `npm run start` — serve the production build
-- `npm run lint` — ESLint
+- `npm run dev` starts the development server
+- `npm run build` makes a production build
+- `npm run start` serves the production build
+- `npm run lint` runs ESLint

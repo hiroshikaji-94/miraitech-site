@@ -1,149 +1,105 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, ArrowRight, Mail, ChevronRight } from 'lucide-react'
+import { ArrowRight, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { NAV_LINKS, isActivePath } from '@/lib/nav'
 import { SITE } from '@/lib/site'
-import type { NavLink } from '@/types'
+import { Logo } from '@/components/ui/Logo'
+import { Button } from '@/components/ui/Button'
+import { Container } from '@/components/ui/Container'
 
 interface MobileMenuProps {
-  isOpen:   boolean
-  onClose:  () => void
-  links:    NavLink[]
+  open:    boolean
+  onClose: () => void
 }
 
-export function MobileMenu({ isOpen, onClose, links }: MobileMenuProps) {
+// Full-screen menu for small screens. It stays mounted and fades in and out.
+export function MobileMenu({ open, onClose }: MobileMenuProps) {
   const pathname = usePathname()
+  const closeButton = useRef<HTMLButtonElement>(null)
 
-  // Close on route change
   useEffect(() => {
-    onClose()
-  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Lock body scroll and allow Escape to close while open
-  useEffect(() => {
-    if (!isOpen) return
+    if (!open) return
     document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    closeButton.current?.focus()
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
     window.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = ''
       window.removeEventListener('keydown', onKey)
     }
-  }, [isOpen, onClose])
+  }, [open, onClose])
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-foreground/20 backdrop-blur-sm md:hidden"
-            onClick={onClose}
-            aria-hidden
-          />
-
-          {/* Menu panel */}
-          <motion.div
-            key="panel"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Site menu"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className={cn(
-              'fixed right-0 top-0 bottom-0 z-50 w-80 max-w-[86vw] md:hidden',
-              'flex flex-col',
-              'bg-surface border-l border-border/10 shadow-float',
-            )}
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between h-16 px-5 border-b border-border/10">
-              <span className="font-display font-bold text-lg tracking-tight">{SITE.name}</span>
-              <button
-                onClick={onClose}
-                aria-label="Close menu"
-                className={cn(
-                  'flex h-10 w-10 items-center justify-center rounded-lg',
-                  'text-foreground-2 hover:text-foreground',
-                  'hover:bg-surface-high transition-colors',
-                )}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Navigation links */}
-            <nav aria-label="Mobile navigation" className="flex-1 overflow-y-auto px-3 py-4">
-              <ul className="space-y-1">
-                {links.map((link, i) => {
-                  const isActive =
-                    pathname === link.href ||
-                    (link.href !== '/' && pathname.startsWith(link.href))
-
-                  return (
-                    <motion.li
-                      key={link.href}
-                      initial={{ opacity: 0, x: 12 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.04 + i * 0.04, duration: 0.25 }}
-                    >
-                      <Link
-                        href={link.href}
-                        onClick={onClose}
-                        aria-current={isActive ? 'page' : undefined}
-                        className={cn(
-                          'flex items-center justify-between gap-3 px-4 py-3 rounded-xl',
-                          'text-[15px] font-medium transition-colors duration-150',
-                          isActive
-                            ? 'text-accent-warm bg-accent-warm/[0.07]'
-                            : 'text-foreground-2 hover:text-foreground hover:bg-surface-high',
-                        )}
-                      >
-                        {link.label}
-                        <ChevronRight size={16} className={isActive ? 'text-accent-warm' : 'text-foreground-3/60'} />
-                      </Link>
-                    </motion.li>
-                  )
-                })}
-              </ul>
-            </nav>
-
-            {/* Footer — primary action + direct contact */}
-            <div className="px-5 py-5 border-t border-border/10 space-y-3">
-              <Link
-                href="/contact"
-                onClick={onClose}
-                className={cn(
-                  'flex items-center justify-center gap-2 h-11 rounded-lg',
-                  'bg-accent-warm text-white text-sm font-medium',
-                  'hover:bg-accent-violet transition-colors',
-                )}
-              >
-                Work With Us
-                <ArrowRight size={15} />
-              </Link>
-              <a
-                href={`mailto:${SITE.email}`}
-                className="flex items-center justify-center gap-2 text-sm text-foreground-2 hover:text-foreground transition-colors"
-              >
-                <Mail size={14} className="text-foreground-3" />
-                {SITE.email}
-              </a>
-            </div>
-          </motion.div>
-        </>
+    <div
+      id="mobile-menu"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Menu"
+      className={cn(
+        'fixed inset-0 z-[60] flex flex-col bg-background md:hidden',
+        'transition-[opacity,visibility] duration-200',
+        open ? 'visible opacity-100' : 'invisible opacity-0',
       )}
-    </AnimatePresence>
+    >
+      <Container className="flex h-[4.5rem] shrink-0 items-center justify-between border-b border-border/[0.07]">
+        <Logo onClick={onClose} />
+        <button
+          ref={closeButton}
+          type="button"
+          onClick={onClose}
+          aria-label="Close menu"
+          className="flex h-10 w-10 items-center justify-center rounded-btn border border-border/10 text-foreground"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+      </Container>
+
+      <nav aria-label="Mobile" className="flex-1 overflow-y-auto">
+        <Container className="pt-6">
+          <p className="eyebrow">Menu</p>
+          <ul className="mt-4">
+            {NAV_LINKS.map((link) => {
+              const active = isActivePath(pathname, link.href)
+              return (
+                <li key={link.href} className="border-b border-border/[0.07]">
+                  <Link
+                    href={link.href}
+                    onClick={onClose}
+                    aria-current={active ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center justify-between py-4 text-[28px] font-extrabold leading-tight tracking-[-0.035em]',
+                      active ? 'text-foreground' : 'text-foreground-2',
+                    )}
+                  >
+                    {link.label}
+                    {active ? (
+                      <span aria-hidden className="h-2 w-2 rounded-full bg-accent" />
+                    ) : (
+                      <ArrowRight size={18} strokeWidth={2} aria-hidden className="text-foreground-3" />
+                    )}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </Container>
+      </nav>
+
+      <Container className="shrink-0 border-t border-border/[0.07] py-6">
+        <Button href="/contact" size="lg" className="w-full" onClick={onClose}>
+          Get in touch
+          <ArrowRight size={16} strokeWidth={2} aria-hidden />
+        </Button>
+        <p className="mono-label mt-4 text-center text-foreground-3">
+          {SITE.email}
+        </p>
+      </Container>
+    </div>
   )
 }

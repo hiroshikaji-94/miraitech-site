@@ -1,18 +1,18 @@
 ---
-title: "CI/CD for AI Applications: Beyond Traditional Testing"
+title: "Putting evals in CI"
 ---
 
-## Traditional CI/CD Breaks Down for ML
+## Where standard CI/CD falls short
 
-When we shipped our first ML-powered feature — a document classification service — we plugged it into our existing CI/CD pipeline. Unit tests passed. Integration tests passed. The model was deployed. Within 48 hours, classification accuracy had dropped from 94% to 71% because the training data distribution had silently drifted from production inputs.
+We shipped our first ML feature, a document classification service, through our existing CI/CD pipeline. Unit and integration tests passed, and the model went out. Within 48 hours, classification accuracy had dropped from 94% to 71%, because production inputs had drifted from the training data distribution.
 
-The fundamental issue: traditional CI/CD verifies *code correctness*, but AI applications fail along dimensions that code tests can't capture — data quality, model performance, inference latency, and cost. We needed a pipeline that treats models as first-class artifacts alongside code.
+Standard CI/CD checks that the code is correct. AI applications also fail in ways code tests can't see: data quality, model performance, inference latency and cost. We needed a pipeline that treats models as first-class artifacts alongside the code.
 
-## Pipeline Architecture
+## Pipeline stages
 
-Our CI/CD pipeline for AI applications has five stages that go well beyond `lint -> test -> build -> deploy`:
+Our pipeline for AI applications has five stages instead of the usual `lint -> test -> build -> deploy`:
 
-| Stage | What It Verifies | Blocks Deploy? |
+| Stage | What it verifies | Blocks deploy? |
 |-------|-----------------|----------------|
 | Code quality | Linting, type checks, unit tests | Yes |
 | Data validation | Schema conformance, distribution checks | Yes |
@@ -20,9 +20,9 @@ Our CI/CD pipeline for AI applications has five stages that go well beyond `lint
 | Shadow deployment | Side-by-side comparison with production model | No (advisory) |
 | Canary release | Real traffic on a subset of users | Yes (if error rate spikes) |
 
-### The Evaluation Pipeline
+### The evaluation pipeline
 
-This is the core of our approach. Every pull request that touches model code, training data, or feature engineering triggers an evaluation run:
+Model evaluation is the stage that matters most. Every pull request that touches model code, training data or feature engineering triggers an evaluation run:
 
 ```yaml title=".github/workflows/model-evaluation.yml"
 name: Model Evaluation
@@ -86,13 +86,13 @@ jobs:
             });
 ```
 
-<Callout type="warning" title="Pin Your Evaluation Datasets">
-Evaluation datasets must be versioned and immutable per release. If your eval set changes between runs, you can't meaningfully compare metrics. We use DVC to version datasets alongside code, and our CI pipeline refuses to run evaluation if the eval set has uncommitted changes.
+<Callout type="warning" title="Pin your evaluation datasets">
+Version evaluation datasets and freeze them for each release. If the eval set changes between runs, you can't meaningfully compare metrics. We version datasets alongside the code with DVC, and CI refuses to run evaluation if the eval set has uncommitted changes.
 </Callout>
 
-## Dataset Versioning
+## Dataset versioning
 
-We treat datasets like code — versioned, reviewed, and immutable once tagged. Our stack uses DVC backed by S3 for large files:
+Datasets are versioned and reviewed like code, and immutable once tagged. We use DVC backed by S3 for large files. This script checks a new dataset against a reference distribution:
 
 ```python title="ml/data/validate.py"
 import json
@@ -170,9 +170,9 @@ if __name__ == "__main__":
     sys.exit(0 if report.is_valid else 1)
 ```
 
-## Feature Flags for Models
+## Feature flags for models
 
-We deploy models behind feature flags, which gives us instant rollback without redeploying:
+We deploy models behind feature flags, so we can roll back without redeploying:
 
 ```python title="ml/serving/router.py"
 from dataclasses import dataclass
@@ -215,40 +215,40 @@ class ModelRouter:
         }
 ```
 
-### A/B Testing Infrastructure
+### A/B testing
 
-For model A/B tests, we hash the user ID to ensure consistent assignment and log every prediction with the model version for downstream analysis:
+For model A/B tests we hash the user ID so each user stays in one variant, and log every prediction with its model version for later analysis:
 
 | Component | Responsibility |
 |-----------|---------------|
 | Feature flag service | Traffic split, targeting rules, kill switch |
 | Prediction logger | Records model version, input hash, output, latency |
 | Analysis pipeline | Computes per-variant metrics nightly |
-| Dashboard | Visualizes A/B results with confidence intervals |
+| Dashboard | Shows A/B results with confidence intervals |
 
-<Callout type="tip" title="Always Log the Model Version">
-Every prediction in production must be tagged with the exact model version, feature flags active, and a request ID. Without this, debugging a production accuracy drop becomes guesswork. We've burned entire weekends tracing issues that would have been obvious with proper prediction logging.
+<Callout type="tip" title="Always log the model version">
+Tag every production prediction with the exact model version, the active feature flags and a request ID. Without them, debugging an accuracy drop in production is guesswork. We've lost entire weekends to issues that proper prediction logging would have made obvious.
 </Callout>
 
-## Rollback Strategies
+## Rolling back
 
-Model rollbacks are harder than code rollbacks because model artifacts are large and loading a model takes time. Our approach:
+Rolling back a model is harder than rolling back code, because model artifacts are large and take time to load. Our approach has three parts:
 
 <Step number={1} title="Keep the previous model warm">
-We always keep N-1 model version loaded in memory (or at least cached on disk). This lets us roll back in seconds rather than the minutes it takes to download and load a model from artifact storage.
+We always keep the previous model version (N-1) loaded in memory, or at least cached on disk. That lets us roll back in seconds instead of the minutes it takes to download and load a model from artifact storage.
 </Step>
 
-<Step number={2} title="Feature flag instant rollback">
-Changing the feature flag value switches all traffic to the previous model version immediately. No deployment needed. This is our primary rollback mechanism for production incidents.
+<Step number={2} title="Flip the feature flag">
+Changing the flag value moves all traffic to the previous model version immediately, with no deployment. This is our main rollback mechanism during production incidents.
 </Step>
 
 <Step number={3} title="Automated rollback triggers">
-We monitor prediction confidence distributions. If the mean confidence drops below the baseline by more than 2 standard deviations for 5 consecutive minutes, the system automatically rolls back and pages the on-call engineer.
+We monitor the distribution of prediction confidence. If mean confidence stays more than 2 standard deviations below the baseline for 5 consecutive minutes, the system rolls back on its own and pages the on-call engineer.
 </Step>
 
-## Cost Monitoring in the Pipeline
+## Cost checks in CI
 
-AI applications have a unique cost dimension: inference costs scale with traffic and model size. We bake cost estimation into CI (rates shown are from early 2025 — check provider pricing pages for current numbers):
+Inference costs grow with traffic and model size, so we estimate them in CI. The rates below are from early 2025; check the providers' pricing pages for current numbers:
 
 ```python title="ml/ci/cost_estimator.py"
 def estimate_monthly_cost(
@@ -286,18 +286,18 @@ def estimate_monthly_cost(
     }
 ```
 
-Our CI pipeline comments the cost delta on every PR. If switching from `gpt-4o-mini` to `claude-3.5-sonnet` would increase monthly spend by $3,000, the team knows before merging — not when the invoice arrives.
+CI posts the cost delta as a comment on every PR. If switching from `gpt-4o-mini` to `claude-3.5-sonnet` would add $3,000 to the monthly bill, the team knows before merging instead of finding out from the invoice.
 
-## What We Got Wrong Initially
+## What we got wrong at first
 
-### Evaluating on Static Benchmarks Only
+### Evaluating only on static benchmarks
 
-Our initial eval suite used a frozen test set that was perfectly clean and balanced. Production data was messy, imbalanced, and full of edge cases. We now maintain two eval sets: a clean benchmark for regression tracking and a "production-like" set sampled from actual user inputs (with PII stripped).
+Our first eval suite used a frozen test set that was clean and balanced. Production data was messy, imbalanced and full of edge cases. We now keep two eval sets: a clean benchmark for tracking regressions, and a "production-like" set sampled from real user inputs with PII stripped.
 
-### Treating Model Updates Like Code Updates
+### Treating model updates like code updates
 
-Early on, we deployed model updates with the same confidence as code changes. But a model change can degrade in ways that take days to surface — accuracy might hold on common cases while collapsing on tail queries. Shadow deployments, where the new model runs alongside production without serving results, are essential for catching these slow-burn regressions.
+Early on, we deployed model updates with the same confidence as code changes. But a model change can degrade in ways that take days to surface: accuracy can hold on common cases while it collapses on tail queries. Shadow deployments, where the new model runs alongside production without serving results, are how we catch these slow regressions now.
 
-<KeyTakeaway title="Your pipeline is your safety net">
-In AI applications, the pipeline isn't just about shipping faster — it's about catching the failures that unit tests structurally cannot detect. Data drift, accuracy regression, cost spikes, and latency degradation all need automated gates. Build these into your pipeline from day one; retrofitting them after an incident is painful and expensive.
+<KeyTakeaway title="Gate on what unit tests miss">
+Unit tests can't detect data drift, accuracy regressions, cost spikes or latency degradation. Each of those needs an automated gate in the pipeline. Build the gates in from day one; retrofitting them after an incident is painful and expensive.
 </KeyTakeaway>

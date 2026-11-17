@@ -1,83 +1,70 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { List } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-interface TOCItem {
-  id: string
-  text: string
+interface Heading {
+  id:    string
+  text:  string
   level: number
 }
 
-interface TableOfContentsProps {
-  headings: TOCItem[]
-}
+// Distance from the top of the viewport at which a heading counts as "current"
+const READING_LINE = 140
 
-export function TableOfContents({ headings }: TableOfContentsProps) {
+// "On this page" list for wide screens. Highlights the section being read.
+export function TableOfContents({ headings }: { headings: Heading[] }) {
   const [activeId, setActiveId] = useState('')
 
   useEffect(() => {
     if (headings.length === 0) return
+    let frame = 0
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        // Find the first heading that is currently intersecting
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+    const update = () => {
+      frame = 0
+      let current = ''
+      for (const { id } of headings) {
+        const el = document.getElementById(id)
+        if (el && el.getBoundingClientRect().top <= READING_LINE) current = id
+      }
+      setActiveId(current)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
 
-        if (visible.length > 0) {
-          setActiveId(visible[0].target.id)
-        }
-      },
-      { rootMargin: '-80px 0px -60% 0px', threshold: 0 },
-    )
-
-    headings.forEach(({ id }) => {
-      const el = document.getElementById(id)
-      if (el) observer.observe(el)
-    })
-
-    return () => observer.disconnect()
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame) cancelAnimationFrame(frame)
+    }
   }, [headings])
 
   if (headings.length === 0) return null
 
   return (
-    <nav className="hidden xl:block" aria-label="Table of contents">
-      <div className="sticky top-28">
-        <div className="flex items-center gap-2 mb-4">
-          <List size={14} className="text-foreground-3" />
-          <span className="text-xs font-semibold text-foreground-3 uppercase tracking-wider">
-            On this page
-          </span>
-        </div>
-
-        <ul className="space-y-1 border-l border-border/8">
-          {headings.map(({ id, text, level }) => (
-            <li key={id}>
-              <a
-                href={`#${id}`}
-                onClick={(e) => {
-                  e.preventDefault()
-                  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
-                  setActiveId(id)
-                }}
-                className={cn(
-                  'block text-[13px] leading-snug py-1.5 transition-colors duration-200',
-                  level === 2 ? 'pl-4' : 'pl-7',
-                  activeId === id
-                    ? 'text-accent-blue border-l-2 border-accent-blue -ml-px'
-                    : 'text-foreground-3 hover:text-foreground-2',
-                )}
-              >
-                {text}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
+    <nav aria-label="On this page" className="sticky top-28">
+      <p className="eyebrow">On this page</p>
+      <ul className="mt-4 space-y-0.5 border-l border-border/10">
+        {headings.map(({ id, text, level }) => (
+          <li key={id}>
+            <a
+              href={`#${id}`}
+              aria-current={activeId === id ? 'location' : undefined}
+              className={cn(
+                '-ml-px block border-l py-1.5 text-[13px] leading-snug transition-colors duration-150',
+                level === 3 ? 'pl-6' : 'pl-4',
+                activeId === id
+                  ? 'border-accent text-foreground'
+                  : 'border-transparent text-foreground-3 hover:text-foreground',
+              )}
+            >
+              {text}
+            </a>
+          </li>
+        ))}
+      </ul>
     </nav>
   )
 }

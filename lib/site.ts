@@ -1,17 +1,16 @@
-/**
- * Site-wide brand and contact constants.
- * Single source of truth for the company name, location, and contact details.
- */
+// Company facts used across the site.
+// The domain, email address and street area are placeholders until confirmed.
 
 export const SITE = {
-  name:        'MiraiTech',
-  tagline:     'AI-Focused Software Engineering — Tokyo',
-  description: 'An AI-focused software engineering team in Tokyo, building production systems across AI, full-stack, and data.',
-  url:         'https://mirai-tech.net',
-  email:       'contact@mirai-tech.net',
-  founded:     2022,
-  status:      'Accepting new projects',
-  languages:   'Japanese / English',
+  name:         'MiraiTech',
+  tagline:      'AI engineering in Tokyo',
+  description:  'MiraiTech is a small engineering team in Tokyo. We build software on top of language models, along with the data pipelines and web apps it depends on.',
+  url:          'https://mirai-tech.net',
+  email:        'contact@mirai-tech.net',
+  founded:      2022,
+  status:       'Taking on new projects',
+  languages:    'Japanese and English',
+  responseTime: 'Within one business day',
   location: {
     area:     'Nakano, Tokyo',
     country:  'Japan',

@@ -1,16 +1,16 @@
 ---
-title: "Setting Up a Local LLM Development Environment"
+title: "Our local LLM setup"
 ---
 
-## Why Run Models Locally
+## Why we run models locally
 
-Cloud LLM APIs are excellent — until they aren't. Rate limits during a sprint, usage costs that balloon during iteration, latency spikes during peak hours, and the fundamental constraint of sending proprietary code to a third party. At MiraiTech, we run local models for development, testing, and prototyping. Cloud APIs handle production inference. This split gives us fast iteration without the meter running.
+Cloud LLM APIs work well until they don't: rate limits in the middle of a sprint, usage costs that balloon while you iterate, latency spikes at peak hours and having to send proprietary code to a third party. We run local models for development, testing and prototyping, and use cloud APIs for production inference. That lets us iterate quickly without the meter running.
 
-The economics are straightforward: our team was spending roughly $1,200/month on API calls during development. A one-time $800 GPU upgrade eliminated about 80% of that. The setup paid for itself in under a month.
+The economics are simple. We were spending roughly $1,200/month on API calls during development. A one-time $800 GPU upgrade cut about 80% of that, so the setup paid for itself in under a month.
 
-## Ollama: The Foundation
+## Ollama
 
-Ollama is to local LLMs what Docker was to deployment — it abstracts away the painful parts (model formats, quantization, GPU memory management) and gives you a clean interface. Install it, pull a model, and you have an OpenAI-compatible API running on localhost.
+Ollama handles the painful parts of running models locally: model formats, quantization, GPU memory management. Install it, pull a model, and you have an OpenAI-compatible API running on localhost.
 
 ```bash title="initial-setup.sh"
 # Install Ollama (macOS/Linux)
@@ -28,16 +28,16 @@ curl http://localhost:11434/api/tags
 ```
 
 <Callout type="tip" title="Model selection matters more than model size">
-We tested every popular coding model on our actual codebase. The 13B parameter CodeLlama consistently outperformed the 34B variant on our TypeScript tasks because it fit entirely in VRAM without quantization. A model that runs at full precision in memory beats a larger model that's aggressively quantized to fit. Always benchmark on your own code.
+We tested the popular coding models on our own codebase. The 13B parameter CodeLlama consistently beat the 34B variant on our TypeScript tasks, because it fit entirely in VRAM without quantization. A model that runs at full precision in memory beats a larger model that's aggressively quantized to fit. Benchmark on your own code.
 </Callout>
 
-## GPU Configuration and Memory Management
+## GPU configuration and memory management
 
-The single biggest factor in local LLM performance is whether the model fits in GPU memory. Partial offloading — where some layers run on the GPU and others on the CPU — introduces a cliff in performance that makes the model feel unusable.
+The biggest factor in local LLM performance is whether the model fits in GPU memory. With partial offloading, where some layers run on the GPU and the rest on the CPU, performance falls off a cliff and the model feels unusable.
 
-### Memory Requirements by Model Size
+### Memory requirements by model size
 
-| Model Size | Quantization | VRAM Required | Tokens/sec (RTX 4070) | Tokens/sec (M2 Pro) |
+| Model size | Quantization | VRAM required | Tokens/sec (RTX 4070) | Tokens/sec (M2 Pro) |
 |---|---|---|---|---|
 | 7-8B | Q4_K_M | ~4.5 GB | ~65 | ~25 |
 | 13B | Q4_K_M | ~7.5 GB | ~35 | ~14 |
@@ -45,11 +45,11 @@ The single biggest factor in local LLM performance is whether the model fits in 
 | 34B | Q4_K_M | ~19 GB | ~12 | ~5 |
 | 70B | Q4_K_M | ~38 GB | N/A | N/A |
 
-For development work — autocomplete, code review, test generation — we target 30+ tokens per second. Below that threshold, the latency breaks flow. This means 13B models are our practical ceiling on a single consumer GPU.
+For development work such as autocomplete, code review and test generation, we target 30+ tokens per second. Below that, the latency breaks flow. In practice that makes 13B models our ceiling on a single consumer GPU.
 
-### Tuning Ollama for Development
+### Tuning Ollama for development
 
-The default Ollama configuration is conservative. For a dedicated development machine, we override several defaults.
+Ollama's defaults are conservative. On a dedicated development machine we override several of them.
 
 ```bash title="ollama-env-config.sh"
 # Set environment variables before starting Ollama
@@ -70,13 +70,13 @@ export CUDA_VISIBLE_DEVICES=0
 export OLLAMA_MAX_LOADED_MODELS=2
 ```
 
-## Integration With Your Development Stack
+## Integrating with the dev stack
 
-A local model is only useful if it's wired into the tools you already use. We integrate at three levels: editor, CLI, and application.
+A local model is only useful if it's wired into the tools you already use. We integrate it at three levels: editor, CLI and application.
 
-### Editor Integration
+### Editor
 
-Most AI-powered editors support custom endpoints. Point them at Ollama's OpenAI-compatible API and you get local inference with the same UX.
+Most AI-powered editors accept a custom endpoint. Point one at Ollama's OpenAI-compatible API and you get local inference with the same UX.
 
 ```json title=".vscode/settings.json"
 {
@@ -97,9 +97,9 @@ Most AI-powered editors support custom endpoints. Point them at Ollama's OpenAI-
 }
 ```
 
-### Application Integration
+### Application code
 
-For applications that use the OpenAI SDK, switching to a local model requires changing exactly two lines. We use an environment variable to toggle between local and cloud.
+For applications that use the OpenAI SDK, switching to a local model means changing two lines. We toggle between local and cloud with an environment variable.
 
 ```typescript title="lib/ai-client.ts"
 import OpenAI from "openai";
@@ -133,12 +133,12 @@ export async function generateSummary(content: string): Promise<string> {
 ```
 
 <Callout type="warning" title="Don't assume output parity">
-Local models and cloud models will produce different outputs for the same prompt. This is fine for development, but your test suite needs to account for it. We test structure and format, not exact string matches. Assertions like "response contains valid JSON with required fields" work across providers; assertions like "response equals this exact string" break immediately.
+Local and cloud models produce different outputs for the same prompt. That's fine for development, but the test suite has to allow for it. We assert on structure and format instead of exact strings. An assertion like "response contains valid JSON with required fields" works across providers; "response equals this exact string" breaks immediately.
 </Callout>
 
-## Testing Against Local Models
+## Testing against local models
 
-We run a lightweight evaluation suite against local models before promoting any prompt changes to production. This catches regressions without burning API credits.
+Before promoting any prompt change to production, we run a small evaluation suite against local models. It catches regressions without burning API credits.
 
 ```typescript title="tests/ai-eval.test.ts"
 import { describe, it, expect } from "vitest";
@@ -190,9 +190,9 @@ describe("prompt evaluation suite", () => {
 });
 ```
 
-## Building a Local RAG Pipeline
+## A local RAG pipeline
 
-One of our most valuable local setups is a RAG pipeline over internal documentation. We index our codebase, architecture docs, and runbooks, then query them with natural language during development.
+One of the most useful things we run locally is a RAG pipeline over our internal documentation. We index our codebase, architecture docs and runbooks, then query them in plain language during development.
 
 ```typescript title="scripts/index-docs.ts"
 import { readdir, readFile } from "fs/promises";
@@ -250,43 +250,37 @@ function splitIntoChunks(text: string, maxTokens: number): string[] {
 }
 ```
 
-## The Development Workflow
+## Our workflow
 
-After months of refinement, our local LLM workflow looks like this:
+After months of tweaking, our local LLM workflow looks like this:
 
 <Step number={1} title="Pull models on machine setup">
-Run the setup script once per machine. Models are stored in `~/.ollama/models` and shared across projects. We version-lock model names in a `.ollama-models` file in each repo so the team stays synchronized.
+Run the setup script once per machine. Models are stored in `~/.ollama/models` and shared across projects. We pin model names in a `.ollama-models` file in each repo so everyone runs the same versions.
 </Step>
 
 <Step number={2} title="Start Ollama alongside your dev server">
-Ollama runs as a background service. No containers, no orchestration. It starts with the OS and listens on port 11434.
+Ollama runs as a background service, with no containers or orchestration. It starts with the OS and listens on port 11434.
 </Step>
 
-<Step number={3} title="Develop with local, test with local, ship with cloud">
-Set `AI_PROVIDER=local` in `.env.development`. All AI features route to Ollama. When the feature is ready, run the eval suite against the production model to verify prompt compatibility, then deploy.
+<Step number={3} title="Develop and test locally, ship on the cloud">
+Set `AI_PROVIDER=local` in `.env.development` and all AI features route to Ollama. When a feature is ready, run the eval suite against the production model to check the prompts still work, then deploy.
 </Step>
 
-## Cost Comparison After Six Months
+## Costs after six months
 
-| Category | Cloud-Only (Before) | Hybrid Local/Cloud (After) |
+| Category | Cloud only (before) | Hybrid local/cloud (after) |
 |---|---|---|
 | Monthly API costs | $1,200 | $280 |
 | Development iteration speed | Bounded by rate limits | Unbounded |
 | Offline development | Impossible | Fully functional |
 | Data privacy concerns | Required legal review | None for dev data |
 | Hardware investment | $0 | $800 one-time |
-| Break-even point | — | 1 month |
+| Break-even point | n/a | 1 month |
 
-## Limitations to Be Honest About
+## Limitations
 
-Local models are not a replacement for frontier cloud models. We use them for different tasks:
+Local models are not a substitute for frontier cloud models, and we use the two for different work. Local is good at autocomplete, boilerplate generation, test writing, documentation drafts, embeddings and RAG retrieval. Cloud is better at complex reasoning, multi-step planning, novel architecture suggestions and long-context analysis. Neither replaces human code review, architecture decisions or security audits.
 
-- **Local excels at:** autocomplete, boilerplate generation, test writing, documentation drafts, embeddings, RAG retrieval
-- **Cloud excels at:** complex reasoning, multi-step planning, novel architecture suggestions, long-context analysis
-- **Neither replaces:** code review by humans, architecture decisions, security audits
-
-The goal is not to eliminate cloud AI — it's to use the right tool at the right layer and stop paying production prices for development experimentation.
-
-<KeyTakeaway title="Local LLMs are a development tool, not a production replacement">
-Run local models to iterate faster, reduce costs, and work offline. Use cloud models for production inference where quality ceilings matter. The OpenAI-compatible API standard makes switching between them trivial — design your abstraction layer once, and the provider becomes a configuration detail.
+<KeyTakeaway title="Local for development, cloud for production">
+Local models let us iterate faster, work offline and stop paying production prices for development experiments. Production inference stays on cloud models, where the quality ceiling matters. Because Ollama exposes an OpenAI-compatible API, switching providers is a configuration change once the client abstraction is in place.
 </KeyTakeaway>

@@ -1,130 +1,97 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Container } from '@/components/ui/Container'
-import { StaggerContainer, StaggerItem } from '@/components/ui/FadeIn'
+import { X } from 'lucide-react'
 
 interface ProjectGalleryProps {
   images: string[]
   title:  string
 }
 
+// Screens shown at column width. Clicking one opens it larger in a native <dialog>.
 export function ProjectGallery({ images, title }: ProjectGalleryProps) {
-  const [lightbox, setLightbox] = useState<number | null>(null)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const [index, setIndex] = useState(0)
 
-  if (!images.length) return null
+  if (images.length === 0) return null
 
-  const openLightbox  = (i: number) => setLightbox(i)
-  const closeLightbox = () => setLightbox(null)
-  const goPrev = () => setLightbox((prev) => (prev !== null ? (prev - 1 + images.length) % images.length : null))
-  const goNext = () => setLightbox((prev) => (prev !== null ? (prev + 1) % images.length : null))
+  const open = (i: number) => {
+    setIndex(i)
+    dialog.current?.showModal()
+  }
+  const step = (delta: number) => setIndex((i) => (i + delta + images.length) % images.length)
 
   return (
     <>
-      <section className="py-16 md:py-20 border-y border-border/8 bg-muted relative">
-        <Container>
-          <StaggerContainer
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-            stagger={0.1}
+      <div className="grid gap-5">
+        {images.map((src, i) => (
+          <button
+            key={src}
+            type="button"
+            onClick={() => open(i)}
+            aria-label={`Enlarge screen ${i + 1} of ${images.length}`}
+            className="card card-hover group block w-full cursor-zoom-in p-2"
           >
-            {images.map((src, i) => (
-              <StaggerItem key={i}>
-                <button
-                  onClick={() => openLightbox(i)}
-                  className={cn(
-                    'group relative block w-full aspect-[16/10] rounded-xl overflow-hidden',
-                    'bg-surface-high border border-border/10 shadow-card',
-                    'hover:shadow-card-hover hover:border-border/15 transition-all duration-300',
-                    'cursor-zoom-in',
-                  )}
-                  aria-label={`View screenshot ${i + 1} of ${images.length}`}
-                >
-                  <Image
-                    src={src}
-                    alt={`${title} — screenshot ${i + 1}`}
-                    fill
-                    className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                  />
-                  {/* Hover overlay */}
-                  <div className="absolute inset-0 bg-background/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                </button>
-              </StaggerItem>
-            ))}
-          </StaggerContainer>
-        </Container>
-      </section>
+            <span className="relative block aspect-[16/9] overflow-hidden rounded-[0.875rem] bg-surface-high">
+              <Image
+                src={src}
+                alt={`${title}, screen ${i + 1}`}
+                fill
+                sizes="(max-width: 768px) 100vw, 800px"
+                className="object-cover object-top transition-transform duration-500 ease-out group-hover:scale-[1.015]"
+              />
+            </span>
+          </button>
+        ))}
+      </div>
 
-      {/* ── Lightbox ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {lightbox !== null && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-xl"
-            onClick={closeLightbox}
-          >
-            {/* Close button */}
-            <button
-              onClick={closeLightbox}
-              className="absolute top-4 right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface border border-border/20 text-foreground-2 hover:text-foreground transition-colors"
-              aria-label="Close lightbox"
-            >
-              <X size={18} />
-            </button>
-
-            {/* Navigation */}
+      <dialog
+        ref={dialog}
+        aria-label={`${title} screens`}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) dialog.current?.close()
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowRight') step(1)
+          if (e.key === 'ArrowLeft') step(-1)
+        }}
+        className="m-auto w-[min(92vw,1600px)] bg-transparent p-0 text-white backdrop:bg-black/85"
+      >
+        <Image
+          src={images[index]}
+          alt={`${title}, screen ${index + 1}`}
+          width={1600}
+          height={900}
+          sizes="92vw"
+          className="h-auto max-h-[82vh] w-full rounded-xl object-contain"
+        />
+        <div className="mt-3 flex items-center justify-between text-sm text-white/75">
+          <span className="font-mono text-xs tabular-nums">
+            {index + 1} / {images.length}
+          </span>
+          <div className="flex items-center gap-5">
             {images.length > 1 && (
               <>
-                <button
-                  onClick={(e) => { e.stopPropagation(); goPrev() }}
-                  className="absolute left-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface border border-border/20 text-foreground-2 hover:text-foreground transition-colors"
-                  aria-label="Previous image"
-                >
-                  <ChevronLeft size={18} />
+                <button type="button" onClick={() => step(-1)} className="hover:text-white">
+                  Previous
                 </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); goNext() }}
-                  className="absolute right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-surface border border-border/20 text-foreground-2 hover:text-foreground transition-colors"
-                  aria-label="Next image"
-                >
-                  <ChevronRight size={18} />
+                <button type="button" onClick={() => step(1)} className="hover:text-white">
+                  Next
                 </button>
               </>
             )}
-
-            {/* Image */}
-            <motion.div
-              key={lightbox}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              transition={{ duration: 0.2 }}
-              className="relative w-[90vw] max-w-5xl aspect-video"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              type="button"
+              onClick={() => dialog.current?.close()}
+              aria-label="Close"
+              className="flex h-8 w-8 items-center justify-center hover:text-white"
             >
-              <Image
-                src={images[lightbox]}
-                alt={`${title} — screenshot ${lightbox + 1}`}
-                fill
-                className="object-contain rounded-xl"
-                sizes="90vw"
-              />
-            </motion.div>
-
-            {/* Counter */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-foreground-3 bg-surface/80 backdrop-blur-sm px-3 py-1 rounded-full">
-              {lightbox + 1} / {images.length}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <X size={18} strokeWidth={1.75} />
+            </button>
+          </div>
+        </div>
+      </dialog>
     </>
   )
 }

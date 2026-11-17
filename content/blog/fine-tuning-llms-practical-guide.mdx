@@ -1,34 +1,34 @@
 ---
-title: "Fine-Tuning LLMs: When, Why, and How"
+title: "When we fine-tune, and when we don't"
 ---
 
-## The Decision We Keep Getting Wrong
+## The decision teams get wrong
 
-The most expensive mistake we see teams make with LLMs isn't choosing the wrong model — it's fine-tuning when they should be prompt engineering, or prompt engineering when they should be fine-tuning. After shipping fine-tuned models for legal document analysis, customer support routing, and medical coding, we've developed a practical framework for making this decision.
+The most expensive LLM mistake we see is choosing the wrong technique: fine-tuning when prompt engineering would do, or prompt engineering when the task needs fine-tuning. We've shipped fine-tuned models for legal document analysis, customer support routing and medical coding, and this is how we make the call.
 
-### When Fine-Tuning Actually Makes Sense
+### When fine-tuning makes sense
 
-Fine-tuning is justified when at least two of these conditions are true:
+We fine-tune when at least two of these are true:
 
-| Condition | Why It Matters |
+| Condition | Why it matters |
 |-----------|---------------|
 | Consistent output format required | Prompt engineering struggles with strict schema adherence across edge cases |
 | Domain-specific vocabulary or reasoning | General models hallucinate domain terms or apply incorrect reasoning patterns |
 | Latency budget under 500ms | Smaller fine-tuned models outperform larger prompted models |
 | Cost per request must decrease | A fine-tuned 8B model is 50-100x cheaper than prompting GPT-4o |
-| Thousands of labeled examples available | Fine-tuning without sufficient data produces worse results than prompting |
+| Thousands of labeled examples available | Fine-tuning without enough data does worse than prompting |
 
-If none of these apply, start with prompt engineering. If only one applies, try few-shot prompting with structured output first. We've seen teams burn months fine-tuning a model that a well-crafted system prompt could have handled.
+If none of these apply, start with prompt engineering. If only one applies, try few-shot prompting with structured output first. We've seen teams spend months fine-tuning a model for a task a good system prompt could have handled.
 
-<Callout type="warning" title="Fine-Tuning Doesn't Add Knowledge">
-Fine-tuning adjusts a model's behavior and style — it doesn't reliably inject new factual knowledge. If your use case requires the model to know about your proprietary product catalog or internal policies, RAG (retrieval-augmented generation) is the correct approach, potentially combined with fine-tuning for output formatting.
+<Callout type="warning" title="Fine-tuning doesn't add knowledge">
+Fine-tuning changes a model's behavior and style. It doesn't reliably teach the model new facts. If the model needs to know your product catalog or internal policies, use RAG (retrieval-augmented generation), possibly combined with fine-tuning for output formatting.
 </Callout>
 
-## Data Preparation: The Unglamorous Foundation
+## Data preparation
 
-Data quality determines fine-tuning success more than any hyperparameter choice. We spend 60-70% of total project time on data preparation.
+Data quality matters more than any hyperparameter choice. We spend 60-70% of total project time on data preparation.
 
-### Building the Training Set
+### Building the training set
 
 ```python title="ml/data/prepare_training_data.py"
 import json
@@ -134,25 +134,25 @@ class DatasetBuilder:
         print(f"Rejected: {len(self.rejected)} examples")
 ```
 
-### Data Quality Checklist
+### Data quality checklist
 
-Before every fine-tuning run, we verify:
+Before every fine-tuning run, we check:
 
-- **No data leakage:** Eval examples must not appear in training data (we hash-check this).
-- **Label consistency:** Two annotators should agree on at least 90% of examples. Below that, the labels are too noisy for the model to learn a coherent pattern.
-- **Distribution match:** Training data should roughly match the production distribution of categories. Severe imbalance teaches the model to over-predict the majority class.
-- **No PII in training data:** We run a PII detection pass and redact before training. Fine-tuned models can memorize and regurgitate training data.
+- **No data leakage.** Eval examples must not appear in the training data. We hash-check this.
+- **Label consistency.** Two annotators should agree on at least 90% of examples. Below that, the labels are too noisy for the model to learn a coherent pattern.
+- **Distribution match.** Training data should roughly match the production distribution of categories. Severe imbalance teaches the model to over-predict the majority class.
+- **No PII.** We run a PII detection pass and redact before training, because fine-tuned models can memorize and repeat their training data.
 
-## Training Strategies: LoRA vs. QLoRA vs. Full Fine-Tuning
+## LoRA, QLoRA or full fine-tuning
 
-| Method | VRAM Required (7B model) | Training Speed | Quality | Best For |
+| Method | VRAM required (7B model) | Training speed | Quality | Best for |
 |--------|-------------------------|----------------|---------|----------|
 | Full fine-tune | 60+ GB | Slow | Highest | When you have budget and >50k examples |
 | LoRA (r=16) | 16-24 GB | Fast | Very good | Most production use cases |
 | QLoRA (4-bit) | 6-10 GB | Medium | Good | Experimentation, constrained hardware |
 | Adapter fusion | 20-30 GB | Medium | Very good | Multi-task models |
 
-We default to LoRA for production fine-tuning. The quality gap between LoRA and full fine-tuning is negligible for most tasks, and the resource savings are dramatic.
+We default to LoRA for production fine-tuning. For most tasks the quality gap to full fine-tuning is negligible, and LoRA needs far less hardware.
 
 ```python title="ml/training/finetune_lora.py"
 from dataclasses import dataclass
@@ -258,61 +258,61 @@ def train(config: FinetuneConfig):
     return trainer.state.best_metric
 ```
 
-<Callout type="tip" title="Start With QLoRA for Experimentation">
-Use QLoRA (4-bit quantization) during experimentation to iterate quickly on data quality and hyperparameters. Once you've found a configuration that works, switch to LoRA or full fine-tuning for the production model. The quality difference between QLoRA and LoRA is usually 1-3% on task-specific benchmarks, but QLoRA uses 60% less VRAM.
+<Callout type="tip" title="Experiment with QLoRA first">
+Use QLoRA (4-bit quantization) while you iterate on data quality and hyperparameters. Once a configuration works, switch to LoRA or full fine-tuning for the production model. QLoRA usually scores 1-3% lower than LoRA on task-specific benchmarks and uses 60% less VRAM.
 </Callout>
 
-## Evaluation Beyond Loss Curves
+## Evaluation
 
-Training loss going down doesn't mean your model is good. We evaluate fine-tuned models on three axes:
+A falling training loss doesn't mean the model is good. We evaluate fine-tuned models on three axes:
 
 <Step number={1} title="Task-specific accuracy">
-For classification tasks, we measure precision, recall, and F1 per class. For generation tasks, we use a combination of automated metrics (ROUGE, BERTScore) and LLM-as-judge evaluation where a stronger model grades the output.
+For classification tasks we measure precision, recall and F1 per class. For generation tasks we combine automated metrics (ROUGE, BERTScore) with LLM-as-judge evaluation, where a stronger model grades the output.
 </Step>
 
 <Step number={2} title="Regression testing">
-We maintain a set of "golden" examples that the base model handles correctly. If fine-tuning degrades performance on these, the model has overfit to the fine-tuning distribution at the expense of general capability. More than 5% regression on golden examples is a red flag.
+We keep a set of "golden" examples that the base model handles correctly. If fine-tuning makes these worse, the model has overfit to the fine-tuning distribution and lost general capability. More than 5% regression on the golden set is a red flag.
 </Step>
 
 <Step number={3} title="Adversarial testing">
-We test with out-of-distribution inputs, prompt injections, and edge cases. Fine-tuned models can become brittle — confidently producing wrong outputs for inputs slightly outside the training distribution.
+We test with out-of-distribution inputs, prompt injections and edge cases. Fine-tuned models can become brittle and give confident wrong answers for inputs slightly outside the training distribution.
 </Step>
 
-## Deployment and Cost Analysis
+## Deployment and cost
 
-### Serving Infrastructure
+### Serving
 
-We serve fine-tuned models using vLLM behind a FastAPI gateway. For models under 13B parameters, a single A10G instance handles 50-100 requests/second depending on sequence length.
+We serve fine-tuned models with vLLM behind a FastAPI gateway. For models under 13B parameters, a single A10G instance handles 50-100 requests/second depending on sequence length.
 
-### Cost Comparison: Real Numbers
+### Cost comparison
 
-These are actual costs from a legal document classification project processing 500k documents/month (pricing as of Q4 2024):
+These costs come from a legal document classification project that processes 500k documents/month (pricing as of Q4 2024):
 
-| Approach | Cost/Month | Accuracy | P95 Latency |
+| Approach | Cost/month | Accuracy | P95 latency |
 |----------|-----------|----------|-------------|
 | GPT-4o with 8-shot prompt | $4,200 | 93.1% | 2,400ms |
 | GPT-4o-mini with 8-shot prompt | $310 | 87.4% | 890ms |
 | Fine-tuned Llama 3.1 8B (LoRA) | $180 (GPU hosting) | 94.7% | 120ms |
 | Fine-tuned Llama 3.1 8B (QLoRA) | $180 (GPU hosting) | 93.2% | 125ms |
 
-The fine-tuned 8B model is cheaper, faster, and more accurate than prompting GPT-4o for this specific task. That's the sweet spot for fine-tuning: narrow, well-defined tasks with sufficient training data.
+For this task, the fine-tuned 8B model is cheaper, faster and more accurate than prompting GPT-4o. That's where fine-tuning pays off: narrow, well-defined tasks with enough training data.
 
-### When Our Fine-Tuning Failed
+### When fine-tuning failed
 
-Not every project succeeded. We attempted to fine-tune a model for open-ended legal reasoning and got worse results than prompting a frontier model. The task required broad world knowledge and multi-step reasoning that a smaller model simply couldn't replicate, regardless of training data quality. We reverted to Claude 3.5 Sonnet with a carefully engineered prompt chain and RAG — more expensive per request, but actually correct.
+We tried fine-tuning a model for open-ended legal reasoning and got worse results than prompting a frontier model. The task needed broad world knowledge and multi-step reasoning that a smaller model couldn't replicate, however good the training data was. We went back to Claude 3.5 Sonnet with a carefully built prompt chain and RAG. It costs more per request, and it gets the answers right.
 
-## The Iterative Process
+## The retraining loop
 
-Fine-tuning is never one-and-done. Our production models go through a continuous improvement cycle:
+A fine-tuned model is never finished. Our production models go through this cycle:
 
-1. **Monitor production predictions** — log inputs, outputs, confidence scores, and user feedback.
-2. **Identify failure modes** — cluster low-confidence predictions and user corrections weekly.
-3. **Augment training data** — add corrected examples to the training set, re-validate distribution.
-4. **Retrain and evaluate** — run the full pipeline, compare against the current production model.
-5. **Deploy behind feature flag** — shadow test before promoting to primary.
+1. Log production inputs, outputs, confidence scores and user feedback.
+2. Every week, cluster low-confidence predictions and user corrections to find failure modes.
+3. Add the corrected examples to the training set and re-validate the distribution.
+4. Retrain, run the full pipeline and compare against the current production model.
+5. Deploy behind a feature flag and shadow test before promoting to primary.
 
-Each cycle typically improves task accuracy by 1-3 percentage points until diminishing returns set in around 95-97% for most classification tasks.
+Each cycle usually adds 1-3 percentage points of task accuracy. For most classification tasks the gains flatten out around 95-97%.
 
-<KeyTakeaway title="Fine-tuning is an engineering discipline, not a magic trick">
-The models that work in production are built on clean data, rigorous evaluation, and disciplined deployment — not clever hyperparameter tuning. We've seen teams spend weeks optimizing learning rates while their training data contained 15% mislabeled examples. Fix the data first. The model will follow.
+<KeyTakeaway title="Fix the data first">
+We've seen teams spend weeks tuning learning rates while 15% of their training examples were mislabeled. The fine-tuned models that work in production are built on clean data, careful evaluation and disciplined deployment. Hyperparameter tuning matters far less.
 </KeyTakeaway>

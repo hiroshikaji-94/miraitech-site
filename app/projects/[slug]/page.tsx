@@ -2,33 +2,24 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { ALL_PROJECTS } from '@/lib/data'
 import { PROJECT_DETAILS } from '@/lib/project-details'
-
 import { ProjectHero } from '@/components/sections/project-detail/ProjectHero'
-import { ProjectContent } from '@/components/sections/project-detail/ProjectContent'
-import { ProjectStack } from '@/components/sections/project-detail/ProjectStack'
-import { ProjectArchitecture } from '@/components/sections/project-detail/ProjectArchitecture'
-import { ProjectGallery } from '@/components/sections/project-detail/ProjectGallery'
-import { ProjectChallenges } from '@/components/sections/project-detail/ProjectChallenges'
-import { ProjectCTA } from '@/components/sections/project-detail/ProjectCTA'
-import { ProjectNav } from '@/components/sections/project-detail/ProjectNav'
+import { ProjectBody } from '@/components/sections/project-detail/ProjectBody'
+import { PrevNext } from '@/components/ui/PrevNext'
 
-// ─── Static params for all known projects ────────────────────────
-
-export function generateStaticParams() {
-  return ALL_PROJECTS.map((p) => ({ slug: p.slug }))
-}
-
-// ─── Dynamic metadata ────────────────────────────────────────────
+const PROJECTS = [...ALL_PROJECTS].sort((a, b) => a.order - b.order)
 
 interface PageProps {
   params: Promise<{ slug: string }>
 }
 
+export function generateStaticParams() {
+  return PROJECTS.map((p) => ({ slug: p.slug }))
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
-  const project = ALL_PROJECTS.find((p) => p.slug === slug)
-
-  if (!project) return { title: 'Project Not Found' }
+  const project = PROJECTS.find((p) => p.slug === slug)
+  if (!project) return { title: 'Project not found' }
 
   return {
     title: project.title,
@@ -36,36 +27,31 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     openGraph: {
       title: project.title,
       description: project.summary,
-      images: project.coverImage ? [{ url: project.coverImage }] : undefined,
+      images: [{ url: project.coverImage }],
     },
   }
 }
 
-// ─── Page ────────────────────────────────────────────────────────
+const link = (p: (typeof PROJECTS)[number] | undefined) =>
+  p ? { href: `/projects/${p.slug}`, title: p.title } : null
 
-export default async function ProjectDetailPage({ params }: PageProps) {
+export default async function ProjectPage({ params }: PageProps) {
   const { slug } = await params
-
-  const projectIndex = ALL_PROJECTS.findIndex((p) => p.slug === slug)
-  const project = ALL_PROJECTS[projectIndex]
+  const index = PROJECTS.findIndex((p) => p.slug === slug)
+  const project = PROJECTS[index]
   const details = PROJECT_DETAILS[slug]
-
   if (!project || !details) notFound()
 
-  // Prev / Next navigation
-  const prev = projectIndex > 0 ? ALL_PROJECTS[projectIndex - 1] : null
-  const next = projectIndex < ALL_PROJECTS.length - 1 ? ALL_PROJECTS[projectIndex + 1] : null
-
   return (
-    <>
+    <article>
       <ProjectHero project={project} details={details} />
-      <ProjectContent project={project} details={details} />
-      <ProjectStack techChoices={details.techChoices} />
-      <ProjectArchitecture architecture={details.architecture} />
-      <ProjectGallery images={project.images ?? []} title={project.title} />
-      <ProjectChallenges challenges={details.challenges} />
-      <ProjectCTA />
-      <ProjectNav prev={prev} next={next} />
-    </>
+      <ProjectBody project={project} details={details} />
+      <PrevNext
+        label="More projects"
+        noun="project"
+        prev={link(PROJECTS[index - 1])}
+        next={link(PROJECTS[index + 1])}
+      />
+    </article>
   )
 }

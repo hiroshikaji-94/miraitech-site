@@ -1,20 +1,20 @@
 ---
-title: "Developer Tools That Actually Changed Our Workflow in 2024"
+title: "Tools we kept using in 2024"
 ---
 
-## The Problem With Tool Fatigue
+## Tool fatigue
 
-Every year brings a flood of "must-have" developer tools. Most of them solve problems we don't have, or solve real problems in ways that create new ones. At MiraiTech, we've learned to be skeptical — but a handful of tools genuinely reshaped how we build software in 2024. This isn't a listicle. These are the tools we actually kept after the honeymoon phase wore off.
+Every year brings a flood of "must-have" developer tools. Most of them solve problems we don't have, or solve real problems in ways that create new ones. We're skeptical by default, but a handful of tools changed how we built software in 2024. These are the ones we were still using after the novelty wore off.
 
-## Cursor: The Editor That Finally Delivered on AI Promises
+## Cursor
 
-We resisted AI-assisted editors for a long time. GitHub Copilot felt like autocomplete with delusions of grandeur — useful for boilerplate, but it interrupted flow more than it helped. Cursor changed that calculus.
+We resisted AI-assisted editors for a long time. GitHub Copilot felt like autocomplete with delusions of grandeur: useful for boilerplate, but it interrupted flow more than it helped. Cursor changed our minds.
 
-The difference isn't the model — it's the interface. Cursor treats the entire codebase as context, and the `Cmd+K` inline editing workflow eliminated the copy-paste dance between editor and chat window.
+The difference for us was the interface more than the model. Cursor uses the whole codebase as context, and `Cmd+K` inline editing ended the copy-paste routine between editor and chat window.
 
-### Where It Actually Helps
+### Where it helps
 
-The biggest wins weren't where we expected. Writing new features from scratch? Marginal improvement. But refactoring existing code, writing tests for legacy modules, and translating between languages — those tasks dropped from hours to minutes.
+The biggest wins weren't where we expected. Writing new features from scratch got only marginally faster. Refactoring existing code, writing tests for legacy modules and translating between languages went from hours to minutes.
 
 ```typescript title="cursor-rules.json"
 {
@@ -29,18 +29,18 @@ The biggest wins weren't where we expected. Writing new features from scratch? M
 ```
 
 <Callout type="tip" title="Project-level rules matter more than prompts">
-We maintain a `.cursorrules` file in every repo. This single file improved Cursor's output quality more than any amount of prompt engineering. Be specific about your patterns — the model follows them religiously.
+We keep a `.cursorrules` file in every repo. That one file improved Cursor's output more than any amount of prompt engineering. Be specific about your patterns; the model follows them closely.
 </Callout>
 
-### Team Adoption
+### Adoption
 
-We didn't mandate Cursor. We ran a two-week trial where three engineers used it on a real project. When they shipped a complex migration in half the estimated time, the rest of the team switched voluntarily. Forced adoption kills tools; demonstrated value sells them.
+We didn't mandate Cursor. Three engineers trialed it for two weeks on a real project and shipped a complex migration in half the estimated time. After that, nobody needed persuading.
 
-## Turborepo: Monorepo Without the Monopain
+## Turborepo
 
-We moved to a monorepo in Q1 and immediately regretted it. Build times ballooned, CI bills tripled, and developers spent more time waiting than coding. Turborepo fixed all three problems.
+We moved to a monorepo in Q1 and regretted it almost immediately. Build times ballooned, CI bills tripled and developers spent more time waiting than coding. Turborepo fixed all three problems.
 
-The remote cache alone justified the switch. When one engineer builds a package, every subsequent build across the team hits cache. Our average CI time dropped from 14 minutes to 3.
+The remote cache alone justified the switch. Once one engineer builds a package, every later build across the team hits the cache. Average CI time dropped from 14 minutes to 3.
 
 ```json title="turbo.json"
 {
@@ -70,7 +70,7 @@ The remote cache alone justified the switch. When one engineer builds a package,
 }
 ```
 
-### The Before and After
+### Before and after
 
 | Metric | Before Turborepo | After Turborepo |
 |---|---|---|
@@ -80,9 +80,9 @@ The remote cache alone justified the switch. When one engineer builds a package,
 | Package dependency bugs | Weekly | Rare |
 | New package scaffold time | 30 min | 2 min (generator) |
 
-## Biome: We Dropped ESLint and Prettier in the Same Week
+## Biome
 
-This was the scariest change. ESLint and Prettier are load-bearing infrastructure in every JavaScript project. But our ESLint config had grown to 340 lines across 6 files, with 23 plugins and constant version conflicts. Biome replaced all of it with a single binary.
+We dropped ESLint and Prettier in the same week, and it was the scariest change on this list. Both are load-bearing in nearly every JavaScript project. But our ESLint config had grown to 340 lines across 6 files, with 23 plugins and constant version conflicts. Biome replaced all of it with a single binary.
 
 ```json title="biome.json"
 {
@@ -115,25 +115,25 @@ This was the scariest change. ESLint and Prettier are load-bearing infrastructur
 }
 ```
 
-The speed difference is absurd. Biome lints and formats our entire monorepo in under 200ms. The equivalent ESLint + Prettier pass took 18 seconds. That's not a benchmark — that's the difference between running on every keystroke and running only in CI.
+Biome lints and formats our entire monorepo in under 200ms. The equivalent ESLint + Prettier pass took 18 seconds. At that speed it can run on every keystroke instead of only in CI.
 
 <Callout type="warning" title="Migration isn't painless">
-Biome doesn't support every ESLint rule. We lost a few niche rules around React hook dependency checking and import ordering preferences. For us, the tradeoff was worth it. Audit your ESLint rules before migrating — if you rely heavily on custom plugins, Biome might not be ready for you yet.
+Biome doesn't support every ESLint rule. We lost a few niche rules around React hook dependency checking and import ordering. For us the trade-off was worth it. Audit your ESLint rules before migrating; if you rely heavily on custom plugins, Biome might not be ready for you yet.
 </Callout>
 
-## Linear: Project Management for People Who Build
+## Linear
 
-We switched from Jira to Linear in March. The entire migration took a weekend. Every engineer on the team independently told us it was the single best process change we made all year.
+We switched from Jira to Linear in March, and the migration took a weekend. Every engineer on the team independently said it was the best process change we made all year.
 
-Linear is opinionated and fast. There's no configuration rabbit hole, no marketplace of plugins, no Jira Query Language to learn. Cycles, projects, and issues — that's the model, and it maps cleanly to how we actually work.
+Linear is opinionated and fast. There's no configuration rabbit hole and no Jira Query Language to learn. Cycles, projects and issues are the whole model, and it maps cleanly to how we work.
 
-### The Integration That Sealed It
+### The GitHub integration
 
-Linear's GitHub integration creates bidirectional links between issues and PRs. When we merge a PR that references `FWD-142`, the issue moves to "Done" automatically. No more status update theater in standups.
+Linear links issues and PRs in both directions. When we merge a PR that references `FWD-142`, the issue moves to "Done" automatically, so we no longer spend standups reading out status updates.
 
-## tRPC: End-to-End Type Safety Without the Ceremony
+## tRPC
 
-We were already a TypeScript shop, but the boundary between client and server was still a type-safety gap. tRPC closed it completely.
+We were already a TypeScript shop, but types stopped at the boundary between client and server. tRPC closed that gap.
 
 ```typescript title="server/routers/project.ts"
 export const projectRouter = router({
@@ -164,20 +164,16 @@ export const projectRouter = router({
 });
 ```
 
-The client consumes this with full autocompletion and type checking — change a field name on the server, and the client shows errors immediately. No codegen step, no OpenAPI spec to maintain, no runtime validation mismatch.
+The client gets full autocompletion and type checking from this router. Rename a field on the server and the client shows errors immediately. There's no codegen step and no OpenAPI spec to maintain, and runtime validation can't drift from the types.
 
-## What We Tried and Dropped
+## What we tried and dropped
 
-Honesty matters more than enthusiasm. Here's what didn't stick:
+Not everything stuck:
 
-- **Bun as a runtime** — Fast, but the Node.js compatibility gaps bit us in production. We still use it as a package manager.
-- **Playwright for unit tests** — Overkill. We kept it for E2E and went back to Vitest for everything else.
-- **Neon branching for preview deployments** — Brilliant concept, but branch databases drifted from production schema in ways that masked real bugs.
+- **Bun as a runtime.** Fast, but the Node.js compatibility gaps bit us in production. We still use it as a package manager.
+- **Playwright for unit tests.** Overkill. We kept it for E2E and went back to Vitest for everything else.
+- **Neon branching for preview deployments.** A good idea, but branch databases drifted from the production schema in ways that masked real bugs.
 
-## The Meta-Lesson
-
-The tools that stuck all share one trait: they reduced the gap between intention and execution. Not by adding features, but by removing friction. Every configuration file we deleted, every CI minute we saved, every type error we caught at compile time instead of production — that's compounding time returned to the team.
-
-<KeyTakeaway title="Adopt tools that subtract work, not add capabilities">
-The best developer tools don't give you new things to do — they eliminate things you were already doing poorly. Evaluate tools by what they let you stop doing, not by their feature lists. If a tool requires more than a day of configuration to match your existing workflow, it's probably not the right tool.
+<KeyTakeaway title="Judge tools by what they let you stop doing">
+Every tool we kept took work away: config files we deleted, CI minutes we saved, type errors caught at compile time instead of in production. If a tool needs more than a day of configuration to match your existing workflow, it's probably the wrong tool.
 </KeyTakeaway>

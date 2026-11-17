@@ -1,18 +1,18 @@
 ---
-title: "From Prototype to Production: What Nobody Tells You"
+title: "The work between a prototype and production"
 ---
 
-## The Demo Worked Perfectly
+## The demo worked
 
-Every prototype works. That's the trap. The demo runs on localhost, the database has twelve rows, the only user is you, and the network is a loopback interface. Then someone says "ship it," and you discover that the distance between a working demo and a production system is measured in sleepless nights.
+Every prototype works, and that's the trap. The demo runs on localhost, the database has twelve rows, the only user is you and the network is a loopback interface. Then someone says "ship it," and you find out how much work sits between a working demo and a production system.
 
-At MiraiTech, we've crossed that gap enough times to map the terrain. Here's what we wish someone had told us before our first production deploy.
+We've taken enough projects from prototype to production to know where that work goes. This is what we wish someone had told us before our first production deploy.
 
-## Error Handling Is an Architecture Decision
+## Error handling is an architecture decision
 
-The prototype has `try/catch` blocks that log to the console. Production needs a coherent error handling strategy that spans the entire stack. This is where most teams accumulate tech debt fastest, because error handling feels like cleanup work rather than design work.
+The prototype has `try/catch` blocks that log to the console. Production needs one error handling strategy across the whole stack. This is where most teams pile up tech debt fastest, because error handling feels like cleanup work rather than design work.
 
-We use a `Result` type pattern inspired by Rust. Every function that can fail returns either a success or a typed error — no thrown exceptions crossing module boundaries.
+We use a `Result` type pattern inspired by Rust. Every function that can fail returns either a success or a typed error, and thrown exceptions never cross module boundaries.
 
 ```typescript title="lib/result.ts"
 type Success<T> = { ok: true; value: T };
@@ -62,17 +62,17 @@ async function getProject(
 }
 ```
 
-This pattern makes error states visible in the type system. You can't forget to handle them — the compiler won't let you access `.value` without checking `.ok` first.
+Error states become visible in the type system. You can't forget to handle them, because the compiler won't let you access `.value` without checking `.ok` first.
 
 <Callout type="info" title="Exceptions still happen">
-The Result pattern handles expected failures. Unexpected failures — out of memory, network partitions, corrupted state — still throw. We wrap top-level handlers in try/catch as a safety net, but the goal is to make those catches fire rarely and loudly.
+The Result pattern handles expected failures. Unexpected ones, such as running out of memory, network partitions or corrupted state, still throw. We wrap top-level handlers in try/catch as a safety net, and we want those catches to fire rarely and loudly.
 </Callout>
 
-## Database Migrations Will Break Your Confidence
+## Database migrations
 
-The prototype uses `db push` to sync schema changes. Production uses migrations, and migrations are where optimism goes to die.
+The prototype uses `db push` to sync schema changes. Production uses migrations, and migrations are unforgiving.
 
-### The Rules We Learned the Hard Way
+### Rules we learned the hard way
 
 1. **Never rename a column in one step.** Add the new column, backfill data, deploy code that reads both, drop the old column. Three deploys minimum.
 2. **Every migration must be reversible.** If you can't write the `down` migration, you don't understand the `up` well enough.
@@ -93,7 +93,7 @@ ALTER TABLE projects ADD COLUMN slug TEXT;
 -- CREATE UNIQUE INDEX CONCURRENTLY idx_projects_slug ON projects(slug);
 ```
 
-| Migration Risk Level | Example | Strategy |
+| Migration risk level | Example | Strategy |
 |---|---|---|
 | Low | Add nullable column | Single migration, deploy freely |
 | Medium | Add index on large table | Use `CONCURRENTLY`, run off-peak |
@@ -101,19 +101,19 @@ ALTER TABLE projects ADD COLUMN slug TEXT;
 | Critical | Change column type | New column + backfill + swap reads |
 | Avoid | Drop column with no backup | Just don't. Add a `deprecated_at` flag |
 
-## Monitoring Is Not Logging
+## Logging, monitoring and alerting
 
-The prototype has `console.log`. Production needs observability — and those are fundamentally different things.
+The prototype has `console.log`. Production needs observability, which is a different thing.
 
-Logging tells you what happened. Monitoring tells you what's happening. Alerting tells you what needs attention. Most teams conflate all three and end up with noisy logs that nobody reads and alerts that everyone ignores.
+Logs record what happened. Monitoring shows what is happening now, and alerts should fire only when something needs attention. Most teams conflate the three and end up with noisy logs nobody reads and alerts everyone ignores.
 
-### Our Observability Stack
+### Our observability stack
 
-We settled on a three-layer approach:
+We settled on three layers:
 
-- **Structured logging** with correlation IDs that trace a request across services
-- **Metrics** for business-critical numbers (response times, error rates, queue depths)
-- **Alerting** only on actionable conditions — if the alert doesn't have a runbook, it shouldn't exist
+- Structured logging, with correlation IDs that trace a request across services.
+- Metrics for business-critical numbers: response times, error rates, queue depths.
+- Alerts only on conditions someone can act on. If an alert doesn't have a runbook, it shouldn't exist.
 
 ```typescript title="lib/logger.ts"
 import { createId } from "@paralleldrive/cuid2";
@@ -162,51 +162,51 @@ function emit(level: string, message: string, data: Record<string, unknown>) {
 }
 ```
 
-<Callout type="warning" title="Correlation IDs are non-negotiable">
-Without a correlation ID threading through every log entry for a single request, debugging production issues becomes archaeology. Generate the ID at the edge (middleware or API gateway) and propagate it through every function call, database query, and external service request.
+<Callout type="warning" title="Use correlation IDs everywhere">
+Without a correlation ID on every log entry for a request, debugging production issues turns into archaeology. Generate the ID at the edge (middleware or API gateway) and pass it through every function call, database query and external service request.
 </Callout>
 
-## Security Hardening Isn't a Checklist
+## Security
 
-The prototype trusts all input. Production trusts nothing. The gap between those two postures is where breaches live.
+The prototype trusts all input. Production trusts nothing.
 
-### The Minimum Viable Security We Ship With
+### The minimum we ship with
 
 - **Input validation at the boundary.** Every API endpoint validates with Zod schemas. No raw `req.body` access anywhere.
 - **Rate limiting per endpoint, not globally.** Login gets 5 attempts per minute. Search gets 30. File upload gets 3.
-- **CSRF tokens on every state-changing request.** Even API routes behind authentication.
-- **Content Security Policy headers.** Strict enough to block inline scripts, permissive enough to not break the app.
+- **CSRF tokens on every state-changing request.** That includes API routes behind authentication.
+- **Content Security Policy headers.** Strict enough to block inline scripts, loose enough not to break the app.
 - **Dependency auditing in CI.** `npm audit` runs on every PR. Critical vulnerabilities block merge.
 
-## Performance Optimization: Measure First, Always
+## Performance: measure first
 
-The prototype is fast because it's empty. Production is slow because it's real. The instinct is to optimize everything — resist it. Profile first, optimize the actual bottleneck, measure again.
+The prototype is fast because it's empty, and production is slow because it's real. The instinct is to optimize everything; resist it. Profile first, fix the bottleneck you find, then measure again.
 
-### The Three Wins That Matter Most
+### The usual three
 
-After profiling dozens of production apps, the same three issues account for roughly 80% of performance problems we see:
+We've profiled dozens of production apps, and the same three issues account for roughly 80% of the performance problems we see:
 
 1. **N+1 queries.** The ORM fetches a list, then fetches related data one row at a time. Fix with eager loading or dataloaders.
-2. **Missing database indexes.** A query plan scan on a 500K row table takes 400ms. Adding the right index drops it to 2ms.
-3. **Unoptimized images and fonts.** The browser downloads 4MB of assets before rendering anything useful. Fix with proper formats, lazy loading, and font subsetting.
+2. **Missing database indexes.** A full table scan on a 500K row table takes 400ms. Adding the right index drops it to 2ms.
+3. **Unoptimized images and fonts.** The browser downloads 4MB of assets before rendering anything useful. Fix with proper formats, lazy loading and font subsetting.
 
-Everything else — memoization, code splitting, edge caching — is optimization. These three are bug fixes.
+Everything else (memoization, code splitting, edge caching) is optimization. These three are bug fixes.
 
-## Team Handoffs Are a System Design Problem
+## Team handoffs are a system design problem
 
-The prototype was built by one person who holds the entire system in their head. Production is maintained by a team, and the system must be legible to people who didn't build it.
+One person built the prototype and holds the whole system in their head. A team maintains production, so the system has to make sense to people who didn't build it.
 
-### What We Include in Every Project Handoff
+### What every handoff includes
 
-- **Architecture Decision Records (ADRs)** for every non-obvious choice. Not what we built, but why we built it that way and what alternatives we rejected.
-- **A `RUNBOOK.md`** covering common operational tasks: how to deploy, how to rollback, how to restart services, how to investigate common alerts.
-- **Seed scripts** that create a realistic local development environment in one command. Not 12 rows — thousands, with realistic relationships and edge cases.
+- **Architecture Decision Records (ADRs)** for every non-obvious choice, explaining why we built it that way and which alternatives we rejected.
+- **A `RUNBOOK.md`** covering common operational tasks: how to deploy, roll back, restart services and investigate common alerts.
+- **Seed scripts** that build a realistic local development environment in one command: thousands of rows instead of 12, with realistic relationships and edge cases.
 
-## The Production Readiness Checklist
+## Production readiness checklist
 
-After shipping enough projects, we formalized what "production ready" means at MiraiTech. A project doesn't ship until every item on this list has an owner and a status.
+After enough projects, we wrote down what "production ready" means at MiraiTech. A project doesn't ship until every item on this list has an owner and a status.
 
-| Category | Item | Status Required |
+| Category | Item | Status required |
 |---|---|---|
 | Reliability | Error handling covers all API boundaries | Complete |
 | Reliability | Health check endpoint exists and is monitored | Complete |
@@ -221,10 +221,6 @@ After shipping enough projects, we formalized what "production ready" means at M
 | Team | Architecture decisions documented | Complete |
 | Team | Local dev setup runs in under 5 minutes | Complete |
 
-## The Real Gap
-
-The distance from prototype to production isn't technical complexity — it's operational maturity. A prototype proves an idea works. Production proves it works reliably, securely, and maintainably, at scale, over time, when you're asleep.
-
-<KeyTakeaway title="Production readiness is a practice, not a phase">
-Treat production concerns as first-class requirements from day one, not as a hardening phase before launch. Error handling, monitoring, security, and documentation aren't polish — they're load-bearing structure. The teams that ship reliably are the ones that build these into their workflow, not the ones that bolt them on at the end.
+<KeyTakeaway title="Build for production from the start">
+Error handling, monitoring, security and documentation are load-bearing, so we treat them as requirements from day one. Teams that save them for a hardening phase before launch end up bolting them on, and they ship less reliably for it.
 </KeyTakeaway>

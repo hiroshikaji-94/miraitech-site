@@ -1,18 +1,18 @@
 ---
-title: "Next.js Architecture Patterns for Large Applications"
+title: "How we organize large Next.js codebases"
 ---
 
-## The Problem With Default Next.js Structure
+## The problem with the default structure
 
-Every Next.js tutorial starts the same way: a few pages, a components folder, maybe a lib directory. This works until your application crosses about 50 routes and 30 contributors. Then the flat structure collapses under its own weight — merge conflicts multiply, shared components become a dumping ground, and nobody can find anything.
+Every Next.js tutorial starts the same way: a few pages, a components folder, maybe a lib directory. That works until the application passes about 50 routes and 30 contributors. After that, merge conflicts multiply and the shared components folder turns into a dumping ground where nobody can find anything.
 
-At MiraiTech, we have worked on Next.js applications ranging from marketing sites to full SaaS platforms. The patterns here are what survived contact with production at scale.
+At MiraiTech we have built everything from marketing sites to full SaaS platforms on Next.js. These are the patterns that held up on the large ones.
 
-## Route Organization Strategies
+## Organizing routes
 
-### Feature-Based Route Groups
+### Route groups by feature
 
-Route groups (parenthesized folders) are the single most important organizational tool for large apps. They let you colocate related routes without affecting the URL structure.
+Route groups (folders in parentheses) are the most useful organizing tool we have for large apps. They let you colocate related routes without changing the URL structure.
 
 ```
 app/
@@ -32,11 +32,11 @@ app/
     layout.tsx          # minimal layout, no nav
 ```
 
-Each group gets its own layout, its own loading states, and its own error boundaries. A crash in the dashboard never bleeds into marketing pages.
+Each group gets its own layout, loading states and error boundaries, so a crash in the dashboard stays out of the marketing pages.
 
-### Parallel Routes for Complex Layouts
+### Parallel routes for complex layouts
 
-When a single page needs independently loading sections — a dashboard with a feed, notifications panel, and analytics widget — parallel routes prevent a single slow query from blocking the entire page.
+Some pages have sections that should load independently, such as a dashboard with a feed, a notifications panel and an analytics widget. Parallel routes stop one slow query from blocking the whole page.
 
 ```typescript title="app/(dashboard)/dashboard/layout.tsx"
 export default function DashboardLayout({
@@ -71,13 +71,13 @@ export default function DashboardLayout({
 }
 ```
 
-## Server vs Client Boundaries
+## Server and client boundaries
 
-The biggest performance wins — and the most confusing bugs — come from getting server/client boundaries right.
+The biggest performance wins, and the most confusing bugs, come from where you put the server/client boundary.
 
-### The Boundary Principle
+### Where to put the boundary
 
-Push `"use client"` as far down the component tree as possible. The goal is to keep the majority of your component tree as Server Components, only dropping into client territory for interactivity.
+Push `"use client"` as far down the component tree as possible. Most of the tree should stay as Server Components, with Client Components only where you need interactivity.
 
 ```typescript title="components/project-card.tsx"
 // This is a Server Component — no directive needed
@@ -103,15 +103,15 @@ export async function ProjectCard({ id }: { id: string }) {
 }
 ```
 
-<Callout type="info" title="Serialization Boundary">
-Everything passed from a Server Component to a Client Component must be serializable. Functions, classes, and Dates cannot cross the boundary. We have been burned by passing Date objects — always convert to ISO strings before crossing into client territory.
+<Callout type="info" title="Serialization boundary">
+Everything passed from a Server Component to a Client Component must be serializable. Functions, classes and Dates cannot cross the boundary. We have been burned by passing Date objects, so we always convert them to ISO strings first.
 </Callout>
 
-## Data Fetching Patterns
+## Data fetching
 
-### Request Deduplication with Cache
+### Request deduplication with cache
 
-Next.js automatically deduplicates `fetch` calls in the same render pass. But when you are using an ORM or database client, you need to handle this manually.
+Next.js deduplicates `fetch` calls within the same render pass automatically. Calls through an ORM or database client are not covered, so you have to handle those yourself.
 
 ```typescript title="lib/data.ts"
 import { cache } from "react"
@@ -134,9 +134,9 @@ export const getProjects = cache(async (teamId: string) => {
 })
 ```
 
-### Caching Strategy Matrix
+### Caching strategy by data type
 
-| Data Type | Cache Strategy | Revalidation | Why |
+| Data type | Cache strategy | Revalidation | Why |
 |-----------|---------------|-------------|-----|
 | User profile | No cache | N/A | Must always be fresh after mutations |
 | Project list | Time-based | 60 seconds | Tolerable staleness, high read volume |
@@ -144,13 +144,13 @@ export const getProjects = cache(async (teamId: string) => {
 | Analytics | Time-based | 300 seconds | Expensive query, approximate data acceptable |
 | Static assets | Immutable | Never | Content-hashed filenames handle versioning |
 
-## Middleware Patterns
+## Middleware
 
-Middleware runs on every request before routing. It is powerful but dangerous — a slow middleware function adds latency to every page load.
+Middleware runs on every request before routing, so a slow middleware function adds latency to every page load.
 
-### Keep Middleware Thin
+### Keep middleware thin
 
-Our rule: middleware should only do **routing decisions and header manipulation**. Authentication checks, yes. Database queries, never.
+Our rule is that middleware handles only **routing decisions and header manipulation**. Authentication checks are fine. Database queries are not.
 
 ```typescript title="middleware.ts"
 import { NextResponse } from "next/server"
@@ -183,13 +183,13 @@ export const config = {
 }
 ```
 
-<Callout type="warning" title="Middleware Runs at the Edge">
-Middleware executes in the Edge Runtime, which means no Node.js APIs. You cannot use fs, most npm packages, or database drivers. If you need those, move the logic to a Server Component or API route.
+<Callout type="warning" title="Middleware runs at the edge">
+Middleware runs in the Edge Runtime, which has no Node.js APIs. You cannot use fs, most npm packages or database drivers. If you need those, move the logic to a Server Component or an API route.
 </Callout>
 
-## Feature-Based Code Organization
+## Organizing code by feature
 
-At scale, we organize code by feature rather than by type. Instead of a single `components/` folder with 200 files, each feature owns its components, hooks, utilities, and types.
+In large apps we organize code by feature. Rather than one `components/` folder with 200 files, each feature owns its components, hooks, utilities and types.
 
 ```
 features/
@@ -214,36 +214,36 @@ features/
     types.ts
 ```
 
-Shared UI primitives (buttons, inputs, modals) live in a separate `components/ui/` directory. The rule is simple: if only one feature uses it, it lives in that feature's folder. If two or more features need it, it gets promoted to shared.
+Shared UI primitives (buttons, inputs, modals) live in a separate `components/ui/` directory. If only one feature uses something, it stays in that feature's folder. Once two or more features need it, it moves to shared.
 
-## Performance Patterns at Scale
+## Performance
 
 ### Streaming and Suspense
 
-For pages with multiple data requirements of varying speed, wrap slow sections in Suspense boundaries. The fast content renders immediately; slow content streams in.
+When a page needs several pieces of data that arrive at different speeds, wrap the slow sections in Suspense boundaries. Fast content renders right away and the slow parts stream in.
 
-### Bundle Analysis
+### Bundle analysis
 
-We run `@next/bundle-analyzer` on every PR that touches shared dependencies. A single unguarded `import dayjs` in a client component can add 70KB to your JavaScript bundle. We have an ESLint rule that flags heavy library imports in files containing `"use client"`.
+We run `@next/bundle-analyzer` on every PR that touches shared dependencies. A single unguarded `import dayjs` in a client component can add 70KB to the JavaScript bundle. An ESLint rule flags heavy library imports in files containing `"use client"`.
 
-### Image Optimization
+### Image optimization
 
-The `next/image` component handles most cases, but at scale you need a strategy: define standard aspect ratios and sizes for each context (cards, heroes, avatars) and enforce them through wrapper components that set correct `sizes` props.
+The `next/image` component handles most cases. In a large app we also define standard aspect ratios and sizes for each context (cards, heroes, avatars) and enforce them with wrapper components that set the correct `sizes` props.
 
 | Optimization | Impact | Effort |
 |-------------|--------|--------|
-| Server Components by default | 30-50% less JS | Low — it is the default |
+| Server Components by default | 30-50% less JS | Low (it is the default) |
 | Route-level code splitting | Faster initial loads | Free with App Router |
-| Suspense boundaries | Better perceived performance | Medium — requires thinking about loading states |
-| Bundle analysis CI check | Prevents regressions | Low — one-time setup |
+| Suspense boundaries | Better perceived performance | Medium (you have to design the loading states) |
+| Bundle analysis CI check | Prevents regressions | Low (one-time setup) |
 | Dynamic imports for heavy components | Smaller initial bundle | Low per component |
 
-## What We Got Wrong Initially
+## What we got wrong at first
 
-Our first large Next.js app made every mistake: enormous client-side bundles from careless `"use client"` placement, a single global layout that re-rendered on every navigation, and no Suspense boundaries anywhere. Pages would show a blank screen for 3-4 seconds while every query resolved.
+Our first large Next.js app got much of this wrong: huge client-side bundles from careless `"use client"` placement, a single global layout that re-rendered on every navigation, and no Suspense boundaries anywhere. Pages showed a blank screen for 3-4 seconds while every query resolved.
 
-The refactor took three weeks. The performance improvement was dramatic — Largest Contentful Paint dropped from 4.2s to 1.1s, and our JavaScript bundle shrank by 60%.
+The refactor took three weeks. Largest Contentful Paint dropped from 4.2s to 1.1s, and our JavaScript bundle shrank by 60%.
 
-<KeyTakeaway title="Architecture Is About Boundaries">
-The most important decisions in a large Next.js application are where you draw boundaries — between server and client, between features, between cached and fresh data, between layout segments. Get the boundaries right and the application stays maintainable at any scale. Get them wrong and no amount of clever code can save you.
+<KeyTakeaway title="Architecture is about boundaries">
+Most of the important decisions in a large Next.js app are about where to draw boundaries: server and client, features, cached and fresh data, layout segments. When those are right, the app stays maintainable as it grows. Clever code does not make up for getting them wrong.
 </KeyTakeaway>

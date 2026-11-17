@@ -1,32 +1,26 @@
-import type { Metadata } from 'next'
 import { Hero } from '@/components/sections/home/Hero'
-import { FeaturedProjects } from '@/components/sections/home/FeaturedProjects'
-import { TechStrip } from '@/components/sections/home/TechStrip'
-import { LatestContent } from '@/components/sections/home/LatestContent'
-import { Studio } from '@/components/sections/home/Studio'
-import { HomeCTA } from '@/components/sections/home/HomeCTA'
-import { SITE } from '@/lib/site'
+import { ToolBand } from '@/components/sections/home/ToolBand'
+import { Services } from '@/components/sections/home/Services'
+import { SelectedWork } from '@/components/sections/home/SelectedWork'
+import { HowWeWork } from '@/components/sections/home/HowWeWork'
+import { Facts } from '@/components/sections/home/Facts'
+import { People } from '@/components/sections/home/People'
+import { Notes } from '@/components/sections/home/Notes'
+import { Faq } from '@/components/sections/home/Faq'
 
-export const metadata: Metadata = {
-  title: `${SITE.name} — AI Engineering from Tokyo`,
-  description:
-    'A Tokyo engineering team building AI systems that run in production — retrieval pipelines, agent architectures, and the full-stack products and data platforms around them.',
-  openGraph: {
-    title: `${SITE.name} — AI Engineering from Tokyo`,
-    description:
-      'A Tokyo engineering team building AI systems that run in production.',
-  },
-}
-
+// Title and description come from the root layout defaults.
 export default function HomePage() {
   return (
     <>
       <Hero />
-      <FeaturedProjects />
-      <TechStrip />
-      <LatestContent />
-      <Studio />
-      <HomeCTA />
+      <ToolBand />
+      <Services />
+      <SelectedWork />
+      <HowWeWork />
+      <Facts />
+      <People />
+      <Notes />
+      <Faq />
     </>
   )
 }

@@ -1,16 +1,16 @@
 ---
-title: "Building Type-Safe APIs with tRPC and Next.js"
+title: "End-to-end types with tRPC and Next.js"
 ---
 
-## Why We Stopped Writing REST Controllers
+## Why we stopped writing REST controllers
 
-Every full-stack TypeScript project we've built eventually runs into the same problem: the API layer becomes a liability. You rename a field in Prisma, update the backend handler, and forget to update the React Query call on the frontend. Nothing breaks at build time. The bug shows up three days later when a QA engineer happens to click the right button.
+Every full-stack TypeScript project we've built hits the same problem at the API layer. Someone renames a field in Prisma, updates the backend handler and forgets the React Query call on the frontend. Nothing breaks at build time. The bug shows up three days later, when a QA engineer happens to click the right button.
 
-tRPC eliminates this entire class of errors by sharing types between server and client at compile time — no code generation, no OpenAPI specs to keep in sync, no runtime overhead. After adopting it across six production projects, we consider it table stakes for any Next.js application where the same team owns both frontend and backend.
+tRPC removes that class of bug. The client gets the server's types at compile time, with no code generation step and no OpenAPI spec to keep in sync. We've used it on six production projects, and it's now our default for any Next.js app where the same team owns the frontend and the backend.
 
-## Router Architecture
+## Router architecture
 
-A well-structured tRPC router mirrors your domain, not your database tables. We organize routers by business capability, then compose them into the root app router.
+We split routers by business capability rather than by database table, then compose them into the root app router. This is the billing router:
 
 ```typescript title="src/server/trpc/routers/billing.ts"
 import { z } from 'zod';
@@ -88,9 +88,9 @@ const billingRouter = router({
 export default billingRouter;
 ```
 
-### Procedure Composition With Middleware
+### Composing procedures with middleware
 
-The real power of tRPC is middleware composition. Instead of decorators or wrapper functions, middleware chains are type-safe and composable:
+Middleware is the part of tRPC we use most. Instead of decorators or wrapper functions, you build procedures by chaining middleware, and the types carry through the chain:
 
 ```typescript title="src/server/trpc/init.ts"
 import { initTRPC, TRPCError } from '@trpc/server';
@@ -143,15 +143,15 @@ export const protectedProcedure = publicProcedure.use(enforceAuth).use(withRateL
 export const adminProcedure = protectedProcedure.use(enforceAdmin);
 ```
 
-<Callout type="info" title="Middleware Order Matters">
-Middleware executes in the order it's chained. Always put authentication before rate limiting — otherwise unauthenticated users consume your rate limit budget and you can't identify abusers.
+<Callout type="info" title="Middleware order matters">
+Middleware runs in the order it's chained. Put authentication before rate limiting. Otherwise unauthenticated users use up the rate limit budget and you can't tell who is abusing it.
 </Callout>
 
-## Error Handling Strategy
+## Error handling
 
-We categorize tRPC errors into two buckets: expected errors (validation failures, not found, permissions) and unexpected errors (database timeouts, third-party API failures). The error formatter surfaces Zod validation details to the client while keeping internal errors opaque.
+We sort tRPC errors into expected ones (validation failures, not found, permissions) and unexpected ones (database timeouts, third-party API failures). The error formatter passes Zod validation details to the client and keeps internal errors opaque.
 
-| Error Type | tRPC Code | Client Behavior |
+| Error type | tRPC code | Client behavior |
 |-----------|-----------|-----------------|
 | Validation failure | `BAD_REQUEST` | Show field-level errors inline |
 | Not authenticated | `UNAUTHORIZED` | Redirect to login |
@@ -207,11 +207,11 @@ export const trpc = createTRPCNext<AppRouter>({
 });
 ```
 
-## Testing Strategies
+## Testing
 
-### Unit Testing Procedures
+### Unit testing procedures
 
-We test procedures directly by calling them with a mock context — no HTTP server needed. This is one of tRPC's most underrated advantages:
+We test procedures by calling them directly with a mock context, so no HTTP server is involved. This part of tRPC gets less attention than it deserves:
 
 ```typescript title="src/server/trpc/__tests__/billing.test.ts"
 import { createInnerContext } from '../context';
@@ -256,15 +256,15 @@ describe('billing.getSubscription', () => {
 });
 ```
 
-<Callout type="tip" title="Test the Middleware Chain">
-Don't just test procedure logic — test that unauthorized calls throw, that rate limiting kicks in, and that admin routes reject non-admin users. These are the tests that catch real production bugs.
+<Callout type="tip" title="Test the middleware chain">
+Test more than procedure logic. Check that unauthorized calls throw, that rate limiting kicks in and that admin routes reject non-admin users. Those are the tests that catch real production bugs.
 </Callout>
 
-### Integration Testing With a Real Database
+### Integration tests against a real database
 
-For integration tests, we spin up a test database per test file using Prisma migrations. This catches query bugs that mocks silently ignore — wrong `include` nesting, missing indexes on `orderBy` fields, and constraint violations.
+For integration tests we create a database per test file with Prisma migrations. That catches query bugs that mocks silently ignore: wrong `include` nesting, missing indexes on `orderBy` fields and constraint violations.
 
-## Performance Considerations
+## Performance
 
 | Optimization | Impact | Complexity |
 |-------------|--------|------------|
@@ -273,18 +273,18 @@ For integration tests, we spin up a test database per test file using Prisma mig
 | Query splitting | Prevents a slow query from blocking fast ones | Medium |
 | Streaming (experimental) | Enables progressive UI updates | High |
 
-We enable HTTP batching by default but split critical-path queries (e.g., session validation) into a separate non-batched link. This ensures your auth check doesn't wait behind a slow analytics query.
+We turn on HTTP batching by default but send critical-path queries, such as session validation, through a separate non-batched link. That way the auth check never waits behind a slow analytics query.
 
-## When Not to Use tRPC
+## When not to use tRPC
 
-tRPC is the right choice when the same team owns client and server in a TypeScript monorepo. It's the wrong choice when:
+tRPC is the right choice when one team owns client and server in a TypeScript monorepo. It's the wrong choice when:
 
 - External consumers need your API (use OpenAPI/REST or GraphQL instead)
 - Your backend isn't TypeScript (obviously)
 - You need protocol-level caching semantics that rely on standard HTTP methods
 
-We've successfully used tRPC alongside REST endpoints in the same application — tRPC for internal app routes, REST for webhooks and public API endpoints. They coexist cleanly in Next.js.
+We've run tRPC alongside REST endpoints in the same Next.js app: tRPC for internal app routes, REST for webhooks and public API endpoints. The two coexist without trouble.
 
-<KeyTakeaway title="Type safety is a team velocity multiplier">
-The real value of tRPC isn't catching type errors — it's the confidence to refactor. When we renamed a database column last month, TypeScript immediately flagged every affected procedure and every client call site. The entire migration, from schema change to deployed fix, took 40 minutes. That same change in an untyped REST codebase would have been a cautious, multi-day affair with manual testing.
+<KeyTakeaway title="Refactoring is the payoff">
+Last month we renamed a database column. TypeScript flagged every affected procedure and every client call site, and the whole change, from schema edit to deployed fix, took 40 minutes. In an untyped REST codebase it would have been a careful, multi-day job with manual testing.
 </KeyTakeaway>

@@ -1,6 +1,4 @@
-/**
- * Team members shown on /team and referenced across the site.
- */
+// The people at MiraiTech, shown on /team and in a few other places.
 
 export interface TeamLink {
   label: string
@@ -8,18 +6,16 @@ export interface TeamLink {
 }
 
 export interface TeamMember {
-  slug:      string
-  name:      string
-  role:      string
-  initials:  string
-  avatar?:   string   // /images/team/<name>-avatar.webp (square)
-  tagline?:  string
-  bio:       string
-  skills:    string[]
-  links:     TeamLink[]
+  slug:     string
+  name:     string
+  role:     string
+  initials: string
+  avatar?:  string   // square image in /images/team
+  summary:  string   // one line, used on the home page
+  bio:      string
+  skills:   string[]
+  links:    TeamLink[]
 }
-
-// ─── Leadership ──────────────────────────────────────────────────
 
 export const LEAD: TeamMember = {
   slug:     'hiroshi-kaji',
@@ -27,16 +23,15 @@ export const LEAD: TeamMember = {
   role:     'Lead Engineer',
   initials: 'HK',
   avatar:   '/images/team/hiroshi-kaji-avatar.webp',
+  summary:  'Runs each project from scoping to launch and is the first person clients talk to.',
   bio:
-    'Leads MiraiTech to prove that a small, senior team can ship AI systems that hold up in production. Works hands-on across the stack — designing agent and retrieval architectures, building the interfaces people actually use, reviewing every deployment, and staying the direct contact for every client. Based in Tokyo, working with teams in Japan and abroad.',
-  skills:   ['AI Architecture', 'LLM Agents', 'RAG', 'TypeScript', 'React', 'Next.js', 'Python', 'System Design'],
+    'Hiroshi leads MiraiTech. On each project Hiroshi designs the architecture, writes much of the web and API code, and reviews every deployment. Because the person who agrees the scope is also the one responsible for shipping it, nothing gets lost in a handover. Based in Tokyo, working with teams in Japan and abroad.',
+  skills:   ['AI architecture', 'LLM agents', 'RAG', 'TypeScript', 'React', 'Next.js', 'Python', 'System design'],
   links: [
     { label: 'Portfolio', href: 'https://tokyotech.me/' },
     { label: 'Email',     href: 'mailto:contact@mirai-tech.net' },
   ],
 }
-
-// ─── Engineers ───────────────────────────────────────────────────
 
 export const TEAM: TeamMember[] = [
   {
@@ -45,10 +40,10 @@ export const TEAM: TeamMember[] = [
     role:     'GenAI & Backend Engineer',
     initials: 'KA',
     avatar:   '/images/team/kenta-aizawa-avatar.webp',
-    tagline:  'Treats the model as one dependency among many.',
+    summary:  'Builds the agent and backend layer, and looks after models once they are in production.',
     bio:
-      'Years of backend work, now focused on generative AI. Designs the agent and orchestration layer for AI products — LangChain and LangGraph flows, tool calling, and the MLOps around them. Models get versioned, monitored, and rolled back like any other dependency. Also owns cloud architecture across AWS Bedrock, SageMaker, and Azure AI.',
-    skills:   ['LangChain', 'LangGraph', 'Python', 'AWS Bedrock', 'SageMaker', 'MLOps', 'Cloud Architecture'],
+      'Kenta worked on backend systems for several years before moving into generative AI. At MiraiTech that means the agent and orchestration layer: LangChain and LangGraph flows, tool calling, and the operational work around them. Models are versioned, monitored and rolled back like any other dependency. Kenta also looks after the cloud setup on AWS Bedrock, SageMaker and Azure AI.',
+    skills:   ['LangChain', 'LangGraph', 'Python', 'AWS Bedrock', 'SageMaker', 'MLOps', 'Cloud architecture'],
     links: [
       { label: 'Portfolio', href: 'https://chai-dev.vercel.app/' },
     ],
@@ -59,10 +54,10 @@ export const TEAM: TeamMember[] = [
     role:     'Data Engineer',
     initials: 'HY',
     avatar:   '/images/team/hiroki-yumisashi-avatar.webp',
-    tagline:  'Builds the data foundation the models rely on.',
+    summary:  'Builds the pipelines and warehouses the models read from, and keeps the data clean.',
     bio:
-      'Owns ingestion, transformation, and the data-quality checks that keep bad data away from models. Builds the pipelines and warehouses that retrieval systems read from, plus infrastructure-as-code for reproducible environments. Has a habit of turning messy legacy records into queryable data.',
-    skills:   ['Python', 'dbt', 'Airflow', 'BigQuery', 'PostgreSQL', 'Terraform', 'Data Modelling'],
+      'Hiroki owns ingestion, transformation and the data-quality checks that keep bad records away from the models. That covers the pipelines and warehouses our retrieval systems read from, and the infrastructure code that makes every environment reproducible. Turning messy legacy data into something you can query is a specialty.',
+    skills:   ['Python', 'dbt', 'Airflow', 'BigQuery', 'PostgreSQL', 'Terraform', 'Data modeling'],
     links: [
       { label: 'LinkedIn', href: 'https://www.linkedin.com/in/hiroki-yumisashi-982606422/' },
     ],
@@ -71,22 +66,25 @@ export const TEAM: TeamMember[] = [
 
 export const ALL_MEMBERS = [LEAD, ...TEAM]
 
-// ─── Working principles ──────────────────────────────────────────
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine']
+
+/** "three", for sentences like "MiraiTech is three engineers in Tokyo" */
+export const TEAM_SIZE_WORD = NUMBER_WORDS[ALL_MEMBERS.length] ?? String(ALL_MEMBERS.length)
 
 export const HOW_WE_WORK = [
   {
-    title: 'The people who scope it, build it',
+    title: 'You talk to the engineers',
     description:
-      'The engineer who discusses your requirements is the one who ships them. No handover to a junior bench, so context is never lost between calls and code.',
+      'The engineer who discusses your requirements is the one who builds them. There is no account manager in between and no handover to a junior team.',
   },
   {
-    title: 'Bilingual by default',
+    title: 'Japanese or English',
     description:
-      'Documentation, standups, and code review happen in Japanese or English — whichever your team prefers. Mixed teams get both.',
+      'Documentation, standups and code review happen in whichever language your team prefers. Mixed teams get both.',
   },
   {
-    title: 'Production is the finish line',
+    title: 'Done means running in production',
     description:
-      'Success means deployed, monitored, and cleanly handed over. An impressive demo that never reaches real users does not count.',
+      'A project is finished when it is deployed, monitored and cleanly handed over. A good demo that never reaches real users does not count.',
   },
 ]

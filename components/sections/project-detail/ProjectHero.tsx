@@ -1,16 +1,11 @@
-'use client'
-
 import Image from 'next/image'
-import { motion } from 'framer-motion'
-import { ArrowLeft, Calendar, Clock, CircleDot } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Container } from '@/components/ui/Container'
-import { Button } from '@/components/ui/Button'
-import { MeridianBackground } from '@/components/ui/MeridianBackground'
-import type { ProjectData } from '@/lib/data'
+import { label, type ProjectData } from '@/lib/data'
 import type { ProjectDetailContent } from '@/lib/project-details'
+import { BackLink } from '@/components/ui/BackLink'
+import { Container } from '@/components/ui/Container'
+import { FactStrip } from '@/components/ui/FactStrip'
 
-const ease = [0.21, 0.47, 0.32, 0.98] as const
+const STATUS = { live: 'In production', wip: 'In progress', archived: 'Archived' } as const
 
 interface ProjectHeroProps {
   project: ProjectData
@@ -18,124 +13,55 @@ interface ProjectHeroProps {
 }
 
 export function ProjectHero({ project, details }: ProjectHeroProps) {
-  const statusColor = {
-    live:     'text-emerald-700 dark:text-emerald-400 bg-emerald-500/10',
-    wip:      'text-amber-700 dark:text-amber-400 bg-amber-500/10',
-    archived: 'text-foreground-3 bg-foreground-3/10',
-  }[project.status]
+  const facts = [
+    { term: 'Year',     value: project.year },
+    { term: 'Duration', value: details.duration },
+    { term: 'Type',     value: label(project.category) },
+    {
+      term:  'Status',
+      value: (
+        <span className="inline-flex items-center gap-2">
+          {project.status === 'live' && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />}
+          {STATUS[project.status]}
+        </span>
+      ),
+    },
+  ]
 
   return (
-    <section className="relative pt-24 pb-12 md:pt-32 md:pb-16 overflow-hidden">
-      <MeridianBackground intensity="subtle" lines={false} parallax={false} />
-      <Container className="relative z-10">
-        {/* Back link */}
-        <motion.div
-          initial={{ opacity: 0, x: -12 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.4, ease }}
-        >
-          <Button href="/projects" variant="ghost" size="sm" className="mb-6">
-            <ArrowLeft size={14} />
-            All Projects
-          </Button>
-        </motion.div>
+    <header className="relative overflow-hidden pt-32 md:pt-40">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[30rem] bg-[radial-gradient(ellipse_50%_60%_at_15%_0%,rgb(var(--color-accent)/0.07),transparent_70%)]"
+      />
+      <Container className="relative">
+        <BackLink href="/projects">All work</BackLink>
 
-        {/* Meta badges */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.05, ease }}
-          className="flex flex-wrap items-center gap-2 mb-4"
-        >
-          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-accent-blue/10 text-accent-blue border border-accent-blue/10">
-            {project.category}
-          </span>
-          <span className={cn('text-[11px] font-semibold px-2.5 py-1 rounded-full', statusColor)}>
-            <CircleDot size={10} className="inline mr-1 -mt-px" />
-            {project.status === 'live' ? 'Live' : project.status === 'wip' ? 'In Progress' : 'Archived'}
-          </span>
-        </motion.div>
-
-        {/* Title */}
-        <motion.h1
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1, ease }}
-          className="font-display text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance leading-[1.15] max-w-3xl"
-        >
+        <p className="eyebrow mt-10">
+          Case study · {label(project.category)}
+        </p>
+        <h1 className="heading-display mt-5 max-w-[20ch] text-[clamp(2.5rem,5.4vw,3.875rem)] text-foreground text-balance">
           {project.title}
-        </motion.h1>
+        </h1>
+        <p className="mt-6 max-w-3xl text-lg leading-[1.7] text-foreground-2 text-pretty">{project.overview}</p>
 
-        {/* Summary */}
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.15, ease }}
-          className="mt-4 text-lg text-foreground-2 max-w-2xl leading-relaxed text-pretty"
-        >
-          {project.overview}
-        </motion.p>
+        <FactStrip facts={facts} className="mt-10" />
 
-        {/* Meta row */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.2, ease }}
-          className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-foreground-3"
-        >
-          <span className="flex items-center gap-1.5">
-            <Calendar size={14} />
-            {project.year}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Clock size={14} />
-            {details.duration}
-          </span>
-        </motion.div>
-
-        {/* Key highlights */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.25, ease }}
-          className="mt-6 flex flex-wrap gap-2"
-        >
-          {project.highlights.map((h) => (
-            <span
-              key={h}
-              className="text-sm font-medium px-3 py-1.5 rounded-lg bg-surface border border-border/10 text-foreground-2"
-            >
-              {h}
-            </span>
-          ))}
-        </motion.div>
-
-        {/* ── Cover screenshot — full-width, prominent ─────── */}
-        <motion.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3, ease }}
-          className="mt-10 md:mt-14"
-        >
-          <div className={cn(
-            'relative w-full aspect-[16/9] rounded-2xl overflow-hidden',
-            'border border-border/10',
-            'bg-surface-high',
-            'shadow-card-hover',
-          )}>
+        <div className="card mt-6 p-2">
+          <div className="relative aspect-[16/9] overflow-hidden rounded-[0.875rem] bg-surface-high">
             <Image
               src={project.coverImage}
-              alt={project.title}
+              alt={`${project.title}, main screen`}
               fill
               loading="eager"
               fetchPriority="high"
-              className="object-cover object-top"
-              sizes="(max-width: 768px) 100vw, (max-width: 1280px) 90vw, 1200px"
               quality={90}
+              sizes="(max-width: 1344px) 100vw, 1264px"
+              className="object-cover object-top"
             />
           </div>
-        </motion.div>
+        </div>
       </Container>
-    </section>
+    </header>
   )
 }

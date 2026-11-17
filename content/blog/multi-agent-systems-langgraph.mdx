@@ -1,20 +1,20 @@
 ---
-title: "Designing Multi-Agent Systems with LangGraph"
+title: "How we structure multi-agent systems in LangGraph"
 ---
 
-## Why Single-Agent Architectures Break Down
+## Where single agents break down
 
-When we first started building LLM-powered applications at MiraiTech, a single ReAct agent felt like magic. Give it tools, a system prompt, and watch it reason. Then we hit production traffic — and everything fell apart.
+When we started building LLM applications at MiraiTech, a single ReAct agent looked like enough: give it tools and a system prompt and let it reason. That stopped working once production traffic arrived.
 
-Single agents struggle with **task complexity ceilings**. Once you exceed 5-7 tools, accuracy degrades. Context windows fill with irrelevant tool outputs. Error recovery becomes a game of hope. We needed something better: multi-agent orchestration.
+A single agent hits a complexity ceiling. Past 5-7 tools, its accuracy drops. The context window fills with irrelevant tool output, and error recovery mostly means hoping the next attempt works. So we moved to multi-agent orchestration.
 
-LangGraph gives us the primitives to build these systems properly — as stateful, observable graphs with explicit control flow.
+LangGraph lets us build these systems as stateful, observable graphs with explicit control flow.
 
-## Architectural Patterns
+## Architecture patterns
 
-### Supervisor Architecture
+### Supervisor architecture
 
-The supervisor pattern uses a central orchestrator agent that delegates to specialized worker agents. It is the simplest to reason about and the easiest to debug.
+A central supervisor agent delegates work to specialized worker agents. Of the patterns here, it is the easiest to reason about and to debug.
 
 ```python title="supervisor.py"
 from langgraph.graph import StateGraph, MessagesState, START, END
@@ -65,28 +65,28 @@ graph.add_edge(START, "supervisor")
 app = graph.compile()
 ```
 
-### Peer-to-Peer Architecture
+### Peer-to-peer architecture
 
-In peer architectures, agents communicate directly. Each agent decides who to hand off to next. This works well when workflows are dynamic and the optimal path is not predictable.
+Agents talk to each other directly, and each one decides who to hand off to next. This suits dynamic workflows where the best path cannot be predicted.
 
-<Callout type="warning" title="Peer Architectures Need Guardrails">
-Without a supervisor, peer-to-peer systems can enter infinite loops. Always implement a maximum step count and cycle detection. We cap our graphs at 25 steps and track visited node sequences to break loops early.
+<Callout type="warning" title="Peer architectures need guardrails">
+Without a supervisor, a peer-to-peer graph can loop forever. Always set a maximum step count and add cycle detection. We cap our graphs at 25 steps and track visited node sequences to break loops early.
 </Callout>
 
-### When to Use Which
+### Choosing a pattern
 
-| Pattern | Best For | Downsides |
+| Pattern | Best for | Downsides |
 |---------|----------|-----------|
 | Supervisor | Predictable workflows, clear task decomposition | Bottleneck at supervisor, higher latency |
 | Peer-to-peer | Dynamic exploration, creative tasks | Harder to debug, loop risk |
 | Hierarchical | Large systems (10+ agents) | Complex state management, slow cold starts |
 | Map-reduce | Parallelizable subtasks (e.g., batch analysis) | Fan-out cost, result merging complexity |
 
-## State Management That Actually Works
+## State management
 
-The most underrated aspect of multi-agent systems is state design. We learned this the hard way: pass too much state and you blow context windows; pass too little and agents make bad decisions.
+State design is the most underrated part of a multi-agent system. We learned this the hard way: pass too much state and you overflow the context window; pass too little and agents make bad decisions.
 
-### Typed State with Reducers
+### Typed state with reducers
 
 ```python title="state.py"
 from langgraph.graph import MessagesState
@@ -131,53 +131,53 @@ def should_continue_research(state: ResearchState) -> str:
     return "researcher"
 ```
 
-The `Annotated` type with `operator.add` is critical here. It tells LangGraph to **append** to lists rather than replace them, so each agent's contributions accumulate.
+The `Annotated` type with `operator.add` is what makes this work. It tells LangGraph to **append** to these lists instead of replacing them, so each agent's contributions accumulate.
 
-## Error Recovery Patterns
+## Error recovery
 
-In production, agents fail constantly. Tools return errors, LLMs hallucinate tool calls, rate limits hit at the worst possible moment. We use three patterns to handle this.
+In production, agents fail all the time. Tools return errors, models hallucinate tool calls and rate limits hit at the worst moment. We handle this with three patterns.
 
-### 1. Retry with Backoff at the Node Level
+### 1. Retry with backoff at the node level
 
-Wrap individual agent nodes with retry logic rather than restarting the entire graph. LangGraph's checkpointing means you can resume from the last successful node.
+Wrap individual agent nodes in retry logic instead of restarting the whole graph. With LangGraph's checkpointing, you can resume from the last successful node.
 
-### 2. Fallback Chains
+### 2. Fallback chains
 
-When a primary tool fails, route to an alternative. We maintain a tool priority list per agent — if the vector search fails, fall back to keyword search, then to cached results.
+When a primary tool fails, route to an alternative. Each agent has a tool priority list: if vector search fails, it falls back to keyword search, then to cached results.
 
-### 3. Human-in-the-Loop Escalation
+### 3. Human-in-the-loop escalation
 
 For high-stakes decisions, we use LangGraph's `interrupt` to pause execution and wait for human input.
 
-<Callout type="tip" title="Checkpointing Saves You in Production">
-Always compile your graph with a checkpointer. When a node fails at 3 AM, you can resume from the last checkpoint instead of replaying the entire conversation. We use PostgreSQL-backed checkpointers for durability.
+<Callout type="tip" title="Compile with a checkpointer">
+Always compile your graph with a checkpointer. When a node fails at 3 AM, you can resume from the last checkpoint instead of replaying the whole conversation. We use PostgreSQL-backed checkpointers for durability.
 </Callout>
 
-## Tool Routing and Specialization
+## Tool routing and specialization
 
-A common mistake is giving every agent access to every tool. This degrades performance significantly — models struggle to select from large tool sets. Instead, we scope tools tightly to each agent's role.
+A common mistake is giving every agent access to every tool. Models struggle to choose from large tool sets, and performance drops significantly. We scope each agent's tools tightly to its role.
 
 Our rule of thumb: **no agent should have more than 5 tools**. If an agent needs more, it is doing too much and should be split.
 
-### Dynamic Tool Selection
+### Dynamic tool selection
 
-For agents that operate across domains, we dynamically select tools based on the current task context rather than loading everything upfront. A lightweight classifier examines the user query and attaches only the relevant tool subset before the agent executes.
+Agents that work across several domains get their tools per task instead of all upfront. A lightweight classifier looks at the user query and attaches only the relevant tools before the agent runs.
 
-## Production Deployment Considerations
+## Running in production
 
 ### Observability
 
-Every agent invocation gets a trace. We instrument with LangSmith, tagging each trace with the graph name, run ID, and the node that produced it. When something goes wrong, we can replay the exact sequence of agent decisions.
+Every agent invocation gets a trace. We instrument with LangSmith and tag each trace with the graph name, the run ID and the node that produced it. When something goes wrong, we can replay the exact sequence of agent decisions.
 
-### Latency Budgets
+### Latency budgets
 
-Multi-agent systems are inherently slower than single agents. We set per-node latency budgets and use streaming to give users feedback while agents work. A typical supervisor graph with three workers takes 8-15 seconds end-to-end — acceptable for async workflows, painful for chat.
+Multi-agent systems are slower than single agents. We set a latency budget per node and stream output so users see progress while the agents work. A typical supervisor graph with three workers takes 8-15 seconds end to end. That is acceptable for async workflows and painful for chat.
 
-### Cost Control
+### Cost control
 
-Each agent call costs money. We track token usage per node and set alerts when a single graph run exceeds a cost threshold. Map-reduce patterns are particularly dangerous — fanning out to 20 parallel agents can burn through budget quickly.
+Every agent call costs money. We track token usage per node and alert when a single graph run goes over a cost threshold. Map-reduce graphs are the riskiest here: fanning out to 20 parallel agents can burn through a budget quickly.
 
-| Metric | Our Target | Why It Matters |
+| Metric | Our target | Why it matters |
 |--------|-----------|----------------|
 | P95 latency | < 20s | User patience threshold for async tasks |
 | Cost per run | < $0.15 | Sustainable at 10k daily runs |
@@ -185,15 +185,15 @@ Each agent call costs money. We track token usage per node and set alerts when a
 | Max steps | 25 | Prevents runaway loops |
 | Tool error rate | < 5% | Signal to fix tool reliability |
 
-## Lessons From 18 Months in Production
+## Lessons from 18 months in production
 
-After running multi-agent systems across several client projects, our biggest lessons are:
+We have run multi-agent systems on several client projects. The main lessons:
 
 1. **Start with a single agent and split only when you hit a wall.** Most tasks do not need multi-agent orchestration.
-2. **State schema is your most important design decision.** Get it wrong and every agent suffers.
-3. **Deterministic edges beat LLM routing for known workflows.** Use conditional edges based on state, not another LLM call, whenever the logic is clear.
+2. **The state schema is your most important design decision.** Get it wrong and every agent suffers.
+3. **Deterministic edges beat LLM routing for known workflows.** When the logic is clear, use conditional edges based on state instead of another LLM call.
 4. **Test agents in isolation before composing them.** Each worker should have its own eval suite.
 
-<KeyTakeaway title="The Core Principle">
-Multi-agent systems trade simplicity for capability. Use them when a single agent genuinely cannot handle the task — not because the architecture looks impressive. When you do reach for them, LangGraph's explicit graph structure and checkpointing make the complexity manageable in ways that pure prompt-chaining never could.
+<KeyTakeaway title="When multiple agents are worth it">
+Multi-agent systems trade simplicity for capability. Use them only when a single agent cannot handle the task. When you do, LangGraph's explicit graph structure and checkpointing make the extra complexity much easier to manage than plain prompt chaining.
 </KeyTakeaway>

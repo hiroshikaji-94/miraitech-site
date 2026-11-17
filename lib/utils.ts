@@ -1,18 +1,14 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
-/** Merge Tailwind classes safely — handles conflicts and conditional classes. */
+// Join class names; later Tailwind classes win over earlier conflicting ones.
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Format an ISO date string ("2026-02-20") to a readable format.
- *
- * Date-only ISO strings parse as UTC midnight, so formatting must also use
- * UTC. Otherwise visitors west of UTC see the previous day, and the server
- * (UTC) and browser render different text, causing a hydration mismatch.
- */
+// Format a date-only ISO string such as "2026-02-20".
+// These parse as UTC midnight, so they must also be formatted in UTC. Otherwise visitors
+// west of UTC see the previous day and the server and browser render different text.
 export function formatDate(date: string, options?: Intl.DateTimeFormatOptions): string {
   return new Date(date).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -23,13 +19,7 @@ export function formatDate(date: string, options?: Intl.DateTimeFormatOptions): 
   })
 }
 
-/** Estimate reading time in minutes from raw text content. */
-export function readingTime(content: string): number {
-  const words = content.trim().split(/\s+/).length
-  return Math.max(1, Math.ceil(words / 200))
-}
-
-/** Slugify a string — used for dynamic routes. */
+// "Tools we use most" -> "tools-we-use-most"
 export function slugify(str: string): string {
   return str
     .toLowerCase()
