@@ -31,7 +31,7 @@ export const LEAD: TeamMember = {
     'Leads MiraiTech to prove that a small, senior team can ship AI systems that hold up in production. Works hands-on across the stack — designing agent and retrieval architectures, building the interfaces people actually use, reviewing every deployment, and staying the direct contact for every client. Based in Tokyo, working with teams in Japan and abroad.',
   skills:   ['AI Architecture', 'LLM Agents', 'RAG', 'TypeScript', 'React', 'Next.js', 'Python', 'System Design'],
   links: [
-    { label: 'Portfolio', href: 'https://www.willowtech.me/' },
+    { label: 'Portfolio', href: 'https://tokyotech.me/' },
     { label: 'Email',     href: 'mailto:contact@mirai-tech.net' },
   ],
 }
